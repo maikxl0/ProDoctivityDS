@@ -2,7 +2,7 @@
 using PdfSharp.Pdf.IO;
 using ProDoctivityDS.Application.Interfaces;
 
-namespace ProDoctivityDS.Application.Services
+namespace ProDoctivityDS.PDFManipulator.Services
 {
     public class PdfManipulatorService : IPdfManipulator
     {

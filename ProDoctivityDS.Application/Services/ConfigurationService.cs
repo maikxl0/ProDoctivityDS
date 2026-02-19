@@ -6,19 +6,19 @@ using ProDoctivityDS.Application.Interfaces;
 using ProDoctivityDS.Domain.Entities;
 using ProDoctivityDS.Domain.Interfaces;
 
-namespace Application.Services
+namespace ProDoctivityDS.Application.Services
 {
     public class ConfigurationService : IConfigurationService
     {
         private readonly IStoredConfigurationRepository _configurationRepository;
-        private readonly IActivityLogEntryRepository _logRepository;
+        private readonly IActivityLogRepository _logRepository;
         private readonly IProductivityApiClient _apiClient;
         private readonly IMapper _mapper;
         private readonly ILogger<ConfigurationService> _logger;
 
         public ConfigurationService(
             IStoredConfigurationRepository configurationRepository,
-            IActivityLogEntryRepository logRepository,
+            IActivityLogRepository logRepository,
             IProductivityApiClient apiClient,
             IMapper mapper,
             ILogger<ConfigurationService> logger)

@@ -1,8 +1,9 @@
 ﻿using Microsoft.AspNetCore.DataProtection;
+using ProDoctivityDS.Domain.Interfaces;
 
 namespace ProDoctivityDS.Shared.Services
 {
-    public class EncryptionService
+    public class EncryptionService : IEncryptionService
     {
         private readonly IDataProtector _protector;
 

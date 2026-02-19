@@ -12,16 +12,16 @@ namespace ProDoctivityDS.Application.Interfaces
         /// <summary>
         /// Aplica las reglas de normalización a un texto.
         /// </summary>
-        string NormalizeText(string text, NormalizationOptionsDto options);
+        string NormalizeText(string text, NormalizationOptions options);
 
         /// <summary>
         /// Evalúa si el texto de la primera página cumple los criterios (OR).
         /// </summary>
-        bool ShouldRemoveFirstPage(string firstPageText, AnalysisRuleSetDto rules);
+        bool ShouldRemoveFirstPage(string firstPageText, AnalysisRuleSet rules);
 
         /// <summary>
         /// Analiza un PDF completo y retorna un diagnóstico detallado.
         /// </summary>
-        Task<AnalysisResultDto> AnalyzePdfAsync(byte[] pdfBytes, AnalysisRuleSetDto rules, CancellationToken cancellationToken = default);
+        Task<AnalysisResultDto> AnalyzePdfAsync(byte[] pdfBytes, AnalysisRuleSet rules, CancellationToken cancellationToken = default);
     }
 }

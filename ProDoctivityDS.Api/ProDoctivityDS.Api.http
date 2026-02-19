@@ -1,0 +1,6 @@
+@ProDoctivityDS.Api_HostAddress = http://localhost:5007
+
+GET {{ProDoctivityDS.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

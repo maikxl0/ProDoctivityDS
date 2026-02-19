@@ -1,4 +1,4 @@
-﻿namespace ProDoctivityDS.Shared.Interfaces
+﻿namespace ProDoctivityDS.Domain.Interfaces
 {
     public interface IEncryptionService
     {

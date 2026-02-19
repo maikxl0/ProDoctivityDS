@@ -1,6 +1,7 @@
-﻿namespace ProDoctivityDS.Application.Dtos.ProDoctivity
+﻿namespace ProDoctivityDS.Domain.Entities.ValueObjects
 {
-    public class NormalizationOptionsDto
+
+    public class NormalizationOptions
     {
         public bool IsEnabled { get; set; } = false;
         public bool ToUpperCase { get; set; } = false;
@@ -10,3 +11,4 @@
         public bool TrimExtraSpaces { get; set; } = false;
     }
 }
+

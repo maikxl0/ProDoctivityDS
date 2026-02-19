@@ -6,7 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using UglyToad.PdfPig;
 
-namespace ProDoctivityDS.Application.Services
+namespace ProDoctivityDS.PDFManipulator.Services
 {
 
     public class PdfAnalyzerService : IPdfAnalyzer
@@ -43,7 +43,7 @@ namespace ProDoctivityDS.Application.Services
         }
 
         /// <inheritdoc />
-        public string NormalizeText(string text, NormalizationOptionsDto options)
+        public string NormalizeText(string text, NormalizationOptions options)
         {
             if (string.IsNullOrEmpty(text))
                 return string.Empty;
@@ -81,7 +81,7 @@ namespace ProDoctivityDS.Application.Services
         }
 
         /// <inheritdoc />
-        public bool ShouldRemoveFirstPage(string firstPageText, AnalysisRuleSetDto rules)
+        public bool ShouldRemoveFirstPage(string firstPageText, AnalysisRuleSet rules)
         {
             if (string.IsNullOrEmpty(firstPageText))
                 return false;
@@ -102,7 +102,7 @@ namespace ProDoctivityDS.Application.Services
             return result1 || result2;
         }
 
-        private bool EvaluateCriterion(string text, CriterionDto criterion, NormalizationOptionsDto normalization)
+        private bool EvaluateCriterion(string text, Criterion criterion, NormalizationOptions normalization)
         {
             if (criterion == null || string.IsNullOrEmpty(criterion.Text))
                 return false;
@@ -151,7 +151,7 @@ namespace ProDoctivityDS.Application.Services
         }
 
         /// <inheritdoc />
-        public async Task<AnalysisResultDto> AnalyzePdfAsync(byte[] pdfBytes, AnalysisRuleSetDto rules, CancellationToken cancellationToken = default)
+        public async Task<AnalysisResultDto> AnalyzePdfAsync(byte[] pdfBytes, AnalysisRuleSet rules, CancellationToken cancellationToken = default)
         {
             var result = new AnalysisResultDto();
 

@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using ProDoctivityDS.Domain.Entities;
 using ProDoctivityDS.Domain.Interfaces;
 using ProDoctivityDS.Persistence.Context;
-using ProDoctivityDS.Shared.Interfaces;
 
 namespace ProDoctivityDS.Persistence.Repositories
 {

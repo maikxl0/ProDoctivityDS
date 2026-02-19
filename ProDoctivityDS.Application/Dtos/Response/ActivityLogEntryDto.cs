@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace ProDoctivityDS.Application.Dtos
+namespace ProDoctivityDS.Application.Dtos.Response
 {
     public class ActivityLogEntryDto
     {

@@ -11,6 +11,7 @@ namespace ProDoctivityDS.Persistence.Context
 
         public DbSet<StoredConfiguration> StoredConfigurations { get; set; }
         public DbSet<ActivityLogEntry> ActivityLogs { get; set; }
+        public DbSet<ProcessedDocument> ProcessedDocuments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
