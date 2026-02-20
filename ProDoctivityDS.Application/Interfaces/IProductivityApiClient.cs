@@ -10,10 +10,13 @@ namespace ProDoctivityDS.Application.Interfaces
         Task<(List<ProductivityDocumentDto> Documents, int TotalCount)> GetDocumentsAsync(
             string baseUrl,
             string bearerToken,
-            List<string>? documentTypeIds,
+            string? documentTypeIds,
             string? name,
             int page,
             int pageSize,
+            string? apiKey = null,
+            string? apiSecret = null,
+            string? cookie = null,
             CancellationToken cancellationToken = default);
 
         /// <summary>

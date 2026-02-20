@@ -49,7 +49,7 @@ namespace ProDoctivityDS.Persistence.Repositories
             var existing = await _context.StoredConfigurations.FirstOrDefaultAsync();
             if (existing == null)
             {
-                entity.Id = 1; // forzar singleton
+                 
                 _context.StoredConfigurations.Add(entity);
             }
             else

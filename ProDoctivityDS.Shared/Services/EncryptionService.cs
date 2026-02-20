@@ -1,17 +1,22 @@
 ﻿using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Logging;
 using ProDoctivityDS.Domain.Interfaces;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ProDoctivityDS.Shared.Services
 {
     public class EncryptionService : IEncryptionService
     {
         private readonly IDataProtector _protector;
+        private readonly ILogger<EncryptionService> _logger;
 
-        public EncryptionService(IDataProtectionProvider provider)
+        public EncryptionService(IDataProtectionProvider provider, ILogger<EncryptionService> logger )
         {
             // El "propósito" actúa como una clave secundaria; asegúrate de que sea único para este módulo.
             // Si cambias este propósito, los datos previamente cifrados NO podrán descifrarse.
             _protector = provider.CreateProtector("Prodoctivity.Encryption.v1");
+            _logger = logger;
         }
 
         /// <summary>
@@ -51,20 +56,27 @@ namespace ProDoctivityDS.Shared.Services
             {
                 byte[] protectedBytes = Convert.FromBase64String(cipherText);
                 byte[] plainBytes = _protector.Unprotect(protectedBytes);
-                return System.Text.Encoding.UTF8.GetString(plainBytes);
+                string plainText = Encoding.UTF8.GetString(plainBytes);
+                _logger.LogDebug("Decrypt OK: longitud cifrado={0}, longitud resultado={1}", cipherText.Length, plainText.Length);
+                return plainText;
             }
-            catch (FormatException)
+            catch (CryptographicException ex)
             {
-                // El texto no es Base64 válido → probablemente no está cifrado.
-                // En este caso, podrías retornarlo tal cual (por retrocompatibilidad) o lanzar excepción.
-                // Por seguridad, lanzamos excepción.
-                throw new InvalidOperationException("El texto no tiene formato de dato cifrado válido.");
+                _logger.LogError(ex, "Error criptográfico al descifrar (posible cambio de clave o datos corruptos)");
+                throw new InvalidOperationException("Error de descifrado: clave incorrecta o datos dañados", ex);
+            }
+            catch (FormatException ex)
+            {
+                _logger.LogError(ex, "El texto cifrado no es Base64 válido: {CipherTextPreview}", cipherText[..Math.Min(50, cipherText.Length)]);
+                throw;
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException("Error al descifrar el texto.", ex);
+                _logger.LogError(ex, "Error inesperado en Decrypt");
+                throw;
             }
         }
     }
+    
 }
 

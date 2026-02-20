@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.OpenApi;
 using ProDoctivityDS.Application;
 using ProDoctivityDS.Persistence;
@@ -41,6 +42,12 @@ builder.Services.AddSwaggerGen(c =>
         [new OpenApiSecuritySchemeReference("SessionId", document)] = new List<string>()
     });
 });
+
+
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys")))
+    .SetApplicationName("ProDoctivityDS");
 
 var app = builder.Build();
 

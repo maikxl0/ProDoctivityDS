@@ -85,13 +85,14 @@ namespace ProDoctivityDS.Application.Services
                 // Usar el cliente API para intentar obtener un documento (o cualquier endpoint simple)
                 // Por simplicidad, intentamos obtener la primera página de documentos con un límite de 1
                 var (documents, totalCount) = await _apiClient.GetDocumentsAsync(
-                    credentials.BaseUrl,
-                    credentials.BearerToken,
-                    null,        // Sin filtro de tipos
-                    null,        // Sin filtro de nombre
-                    0,           // Página 0
-                    1,           // Solo 1 documento
-                    cancellationToken);
+            baseUrl: credentials.BaseUrl,
+            bearerToken: credentials.BearerToken,
+            documentTypeIds: null,
+            name: null,
+            page: 0,
+            pageSize: 15,
+            cancellationToken: cancellationToken
+        );
 
                 var success = documents != null;
 
@@ -127,6 +128,12 @@ namespace ProDoctivityDS.Application.Services
         public async Task<ConfigurationDto> ExportConfigurationAsync(CancellationToken cancellationToken = default)
         {
             var config = await _configurationRepository.GetActiveConfigurationAsync();
+            _logger.LogDebug("Config recuperada: BaseUrl={BaseUrl}, BearerToken length={BearerLen}, ApiKey length={ApiKeyLen}, ApiSecret length={ApiSecretLen}, Cookie length={CookieLen}",
+    config?.ApiBaseUrl,
+    config?.BearerToken?.Length,
+    config?.ApiKey?.Length,
+    config?.ApiSecret?.Length,
+    config?.CookieSessionId?.Length);
 
             // Mapear a DTO (incluye credenciales en texto plano porque el repositorio ya las descifró)
             var dto = _mapper.Map<ConfigurationDto>(config);

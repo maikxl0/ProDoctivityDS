@@ -52,13 +52,13 @@ namespace ProDoctivityDS.Application.Services
 
                 // 3. Llamar al cliente API externo
                 var (documents, totalCount) = await _apiClient.GetDocumentsAsync(
-                    config.ApiBaseUrl,
-                    config.BearerToken,
-                    request.DocumentTypeIds,
-                    request.Name,
-                    request.Page,
-                    request.RowsPerPage,
-                    cancellationToken);
+                    baseUrl: config.ApiBaseUrl,
+                    bearerToken: config.BearerToken,
+                    documentTypeIds: request.DocumentTypeId,
+                    name: request.Name,
+                    page: request.Page,
+                    pageSize: request.RowsPerPage,
+                    cancellationToken: cancellationToken);
 
                 // 4. Mapear a DTOs de respuesta
                 var documentDtos = _mapper.Map<List<DocumentDto>>(documents);

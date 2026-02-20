@@ -49,44 +49,75 @@ namespace ProDoctivityDS.Application.Services
         public async Task<(List<ProductivityDocumentDto> Documents, int TotalCount)> GetDocumentsAsync(
             string baseUrl,
             string bearerToken,
-            List<string>? documentTypeIds,
+            string? documentTypeIds,
             string? name,
             int page,
             int pageSize,
+            string? apiKey = null,
+            string? apiSecret = null,
+            string? cookie = null,
             CancellationToken cancellationToken = default)
         {
             try
             {
-                // Construir URL con parámetros de búsqueda
-                var url = $"app/documents?dateStart=0&pageNumber={page}&rowsPerPage={pageSize}&sortField=updatedAt&sortDirection=DESC";
-                if (!string.IsNullOrWhiteSpace(name))
-                    url += $"&name={Uri.EscapeDataString(name)}";
-
-                var client = CreateClient(baseUrl, bearerToken);
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
-
-                // Si hay filtros de tipo, enviarlos en el body como JSON (según API actual)
-                if (documentTypeIds != null && documentTypeIds.Any())
+                // Validar que pageSize sea 15, 30 o 100
+                int[] allowedPageSizes = { 15, 30, 100 };
+                if (!allowedPageSizes.Contains(pageSize))
                 {
-                    var payload = new Dictionary<string, object>
+                    _logger.LogWarning("El valor de pageSize {PageSize} no es válido. Se usará 100 por defecto.", pageSize);
+                    pageSize = 100; // Puedes cambiar a 15 si prefieres
+                }
+
+                var client = CreateClient(baseUrl, bearerToken, apiKey, apiSecret, cookie);
+
+                bool hasQuery = !string.IsNullOrWhiteSpace(name);
+                bool hasTypeFilters = documentTypeIds != null && documentTypeIds.Any();
+                HttpRequestMessage request;
+                string url;
+
+                if (hasQuery || hasTypeFilters)
+                {
+                    url = $"app/search?pageNumber={page}&rowsPerPage={pageSize}";
+                    if (hasQuery)
+                        url += $"&query={Uri.EscapeDataString(name!)}";
+
+                    var payload = new
                     {
-                        ["documentTypeIdList[]"] = documentTypeIds
+                        fields = new List<string>(),
+                        documentTypeIds = hasTypeFilters ? documentTypeIds : "",
+                        includeApproximateResults = false
                     };
+
                     string jsonPayload = JsonSerializer.Serialize(payload, _jsonOptions);
-                    request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                    request = new HttpRequestMessage(HttpMethod.Post, url)
+                    {
+                        Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
+                    };
+                }
+                else
+                {
+                    url = $"app/documents?dateStart=0&pageNumber={page}&rowsPerPage={pageSize}&sortField=updatedAt&sortDirection=DESC";
+                    request = new HttpRequestMessage(HttpMethod.Get, url);
+                
+                    _logger.LogDebug("GET {Url}", url);
                 }
 
                 var response = await client.SendAsync(request, cancellationToken);
-                response.EnsureSuccessStatusCode();
+
+                // 🔍 LOG: Código de estado y contenido de error si lo hay
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError("Error {StatusCode}. Respuesta: {Error}", response.StatusCode, errorContent);
+                    response.EnsureSuccessStatusCode(); // Lanza excepción con el detalle
+                }
 
                 var json = await response.Content.ReadAsStringAsync(cancellationToken);
                 var searchResponse = JsonSerializer.Deserialize<ProductivitySearchResponseDto>(json, _jsonOptions);
 
-                var documents = searchResponse?.Documents?
-                    .Select(d => d)
-                    .ToList();
+                var documents = searchResponse?.Documents?.ToList() ?? new List<ProductivityDocumentDto>();
+                int totalCount = searchResponse?.Total ?? documents.Count;
 
-                var totalCount = searchResponse?.Total ?? documents.Count;
                 return (documents, totalCount);
             }
             catch (Exception ex)

@@ -15,13 +15,7 @@ namespace ProDoctivityDS.Application.Mappings
 
             // Configuración
             CreateMap<StoredConfiguration, ConfigurationDto>()
-                .ForMember(dest => dest.BaseUrl, opt => opt.MapFrom(src => src.ApiBaseUrl))
-                .ForMember(dest => dest.ApiKey, opt => opt.Ignore())   // Se oculta por seguridad
-                .ForMember(dest => dest.ApiSecret, opt => opt.Ignore())
-                .ForMember(dest => dest.BearerToken, opt => opt.Ignore())
-                .ForMember(dest => dest.CookieSessionId, opt => opt.Ignore())
-                .ReverseMap() // Para importación (incluye credenciales)
-                .ForMember(dest => dest.ApiBaseUrl, opt => opt.MapFrom(src => src.BaseUrl));
+    .ForMember(dest => dest.BearerToken, opt => opt.MapFrom(src => src.BearerToken));
 
             // Documentos
             //CreateMap<ProductivityDocument, DocumentDto>()

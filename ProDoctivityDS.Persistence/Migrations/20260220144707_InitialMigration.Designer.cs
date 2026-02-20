@@ -12,8 +12,8 @@ using ProDoctivityDS.Persistence.Context;
 namespace ProDoctivityDS.Persistence.Migrations
 {
     [DbContext(typeof(ProDoctivityDSDbContext))]
-    [Migration("20260220052206_Initial")]
-    partial class Initial
+    [Migration("20260220144707_InitialMigration")]
+    partial class InitialMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

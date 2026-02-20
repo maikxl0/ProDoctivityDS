@@ -25,7 +25,7 @@ namespace ProDoctivityDS.Controllers
         /// Busca documentos aplicando filtros opcionales (tipo, nombre, paginación)
         /// </summary>
         /// <param name="documentTypeIds">Lista de IDs de tipos de documento (separados por comas) opcional</param>
-        /// <param name="name">Filtro por nombre (opcional)</param>
+        /// <param name="query">Filtro por nombre (opcional)</param>
         /// <param name="page">Número de página (por defecto 0)</param>
         /// <param name="rowsPerPage">Filas por página (por defecto 100, máximo 500)</param>
         /// <param name="cancellationToken">Token de cancelación</param>
@@ -40,8 +40,8 @@ namespace ProDoctivityDS.Controllers
         [ProducesResponseType(401)]
         [ProducesResponseType(500)]
         public async Task<ActionResult<SearchDocumentsResponseDto>> SearchDocuments(
-            [FromQuery] string? documentTypeIds,
-            [FromQuery] string? name,
+            [FromQuery] string? documentTypeIds,  // nombre exacto
+            [FromQuery] string? query,
             [FromQuery] int page = 0,
             [FromQuery] int rowsPerPage = 100,
             CancellationToken cancellationToken = default)
@@ -56,18 +56,16 @@ namespace ProDoctivityDS.Controllers
             try
             {
                 // Convertir documentTypeIds de string separado por comas a lista
-                List<string>? typeIdsList = null;
+                string? typeIdsList = null;
                 if (!string.IsNullOrWhiteSpace(documentTypeIds))
                 {
-                    typeIdsList = new List<string>(
-                        documentTypeIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    );
+                    typeIdsList = documentTypeIds;
                 }
 
                 var request = new SearchDocumentsRequestDto
                 {
-                    DocumentTypeIds = typeIdsList,
-                    Name = name,
+                    DocumentTypeId = typeIdsList,
+                    Name = query,
                     Page = page,
                     RowsPerPage = rowsPerPage
                 };
