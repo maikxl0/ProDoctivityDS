@@ -16,7 +16,7 @@ namespace ProDoctivityDS.Persistence
             #region Contexts
             // DbContext
             services.AddDbContext<ProDoctivityDSDbContext>(options =>
-                options.UseSqlite(config.GetConnectionString("ConnectionDb")).UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
+                options.UseSqlServer(config.GetConnectionString("ConnectionDb")).UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
 
             // Repositorios
             services.AddScoped<IStoredConfigurationRepository, StoredConfigurationRepository>();

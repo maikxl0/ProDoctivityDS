@@ -1,0 +1,82 @@
+<div class="search-container">
+  <form [formGroup]="filterForm" (ngSubmit)="onSearch()" class="filter-form">
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Nombre del documento</mat-label>
+      <input matInput formControlName="name" placeholder="Buscar por nombre...">
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Type IDs (separados por coma)</mat-label>
+      <input matInput formControlName="documentTypeIds" placeholder="Ej: id1,id2,id3">
+    </mat-form-field>
+
+    <div class="button-group">
+      <button mat-raised-button color="primary" type="submit">Buscar</button>
+      <button mat-button type="button" (click)="onClear()">Limpiar</button>
+    </div>
+  </form>
+
+  @if (loading()) {
+    <div class="spinner-container">
+      <mat-spinner diameter="40"></mat-spinner>
+      <span>Cargando documentos...</span>
+    </div>
+  } @else if (error()) {
+    <div class="error-message">{{ error() }}</div>
+  } @else {
+    <div class="table-container">
+      <table mat-table [dataSource]="documents()" class="mat-elevation-z8">
+
+        <!-- Checkbox Column -->
+        <ng-container matColumnDef="select">
+          <th mat-header-cell *matHeaderCellDef>
+            <mat-checkbox (change)="toggleAll()"
+                          [checked]="allSelected()"
+                          [indeterminate]="someSelected()">
+            </mat-checkbox>
+          </th>
+          <td mat-cell *matCellDef="let doc">
+            <mat-checkbox (click)="$event.stopPropagation()"
+                          (change)="toggleSelection(doc.documentId)"
+                          [checked]="isSelected(doc.documentId)">
+            </mat-checkbox>
+          </td>
+        </ng-container>
+
+        <!-- ID Column -->
+        <ng-container matColumnDef="documentId">
+          <th mat-header-cell *matHeaderCellDef> ID </th>
+          <td mat-cell *matCellDef="let doc"> {{doc.documentId | slice:0:8}}... </td>
+        </ng-container>
+
+        <!-- Name Column -->
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef> Nombre </th>
+          <td mat-cell *matCellDef="let doc"> {{doc.name}} </td>
+        </ng-container>
+
+        <!-- Type Column -->
+        <ng-container matColumnDef="documentTypeName">
+          <th mat-header-cell *matHeaderCellDef> Tipo </th>
+          <td mat-cell *matCellDef="let doc"> {{doc.documentTypeName}} </td>
+        </ng-container>
+
+        <!-- Date Column -->
+        <ng-container matColumnDef="createdAt">
+          <th mat-header-cell *matHeaderCellDef> Fecha </th>
+          <td mat-cell *matCellDef="let doc"> {{doc.createdAt | date:'yyyy-MM-dd'}} </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+    </div>
+
+    <mat-paginator [length]="totalCount()"
+                   [pageSize]="pageSize()"
+                   [pageIndex]="pageIndex()"
+                   [pageSizeOptions]="pageSizeOptions"
+                   (page)="onPageChange($event)">
+    </mat-paginator>
+  }
+</div>

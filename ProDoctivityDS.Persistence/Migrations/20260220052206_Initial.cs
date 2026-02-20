@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace ProDoctivityDS.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialMigratiom : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -15,13 +15,13 @@ namespace ProDoctivityDS.Persistence.Migrations
                 name: "ActivityLogs",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    Timestamp = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    Level = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
-                    Category = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
-                    Message = table.Column<string>(type: "TEXT", nullable: false),
-                    DocumentId = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true)
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Timestamp = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Level = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    Category = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DocumentId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -32,16 +32,16 @@ namespace ProDoctivityDS.Persistence.Migrations
                 name: "ProcessedDocuments",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    DocumentId = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    OriginalFileName = table.Column<string>(type: "TEXT", nullable: false),
-                    ProcessedFilePath = table.Column<string>(type: "TEXT", nullable: true),
-                    OriginalFilePath = table.Column<string>(type: "TEXT", nullable: true),
-                    PagesRemoved = table.Column<int>(type: "INTEGER", nullable: false),
-                    ApiUpdated = table.Column<bool>(type: "INTEGER", nullable: false),
-                    ProcessingDate = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ErrorMessage = table.Column<string>(type: "TEXT", nullable: true)
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    DocumentId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    OriginalFileName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ProcessedFilePath = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    OriginalFilePath = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PagesRemoved = table.Column<int>(type: "int", nullable: false),
+                    ApiUpdated = table.Column<bool>(type: "bit", nullable: false),
+                    ProcessingDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ErrorMessage = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -52,16 +52,16 @@ namespace ProDoctivityDS.Persistence.Migrations
                 name: "StoredConfigurations",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    ApiBaseUrl = table.Column<string>(type: "TEXT", nullable: false),
-                    ApiKey = table.Column<string>(type: "TEXT", nullable: false),
-                    ApiSecret = table.Column<string>(type: "TEXT", nullable: false),
-                    BearerToken = table.Column<string>(type: "TEXT", nullable: false),
-                    CookieSessionId = table.Column<string>(type: "TEXT", nullable: false),
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ApiBaseUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ApiKey = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ApiSecret = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    BearerToken = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CookieSessionId = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     ProcessingOptionsJson = table.Column<string>(type: "TEXT", nullable: false, defaultValue: "{}"),
                     AnalysisRulesJson = table.Column<string>(type: "TEXT", nullable: false, defaultValue: "{}"),
-                    LastModified = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    LastModified = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
