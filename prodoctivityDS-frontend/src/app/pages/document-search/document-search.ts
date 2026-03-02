@@ -6,6 +6,8 @@ import { CommonModule } from '@angular/common';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
+import { MatSelectModule } from '@angular/material/select';
+
 import { MatTableModule } from '@angular/material/table';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
@@ -14,7 +16,9 @@ import { MatIconModule } from '@angular/material/icon';
 
 // Servicios y modelos
 import { DocumentService } from '../../data/Services/document.service';
+import { DocumentTypeService } from '../../data/Services/document-type.service'; 
 import { Document } from '../../core/models/document.model';
+import { DocumentType } from '../../core/models/document-type.model';
 
 @Component({
   selector: 'app-document-search',
@@ -24,6 +28,7 @@ import { Document } from '../../core/models/document.model';
     ReactiveFormsModule,
     // Material
     MatFormFieldModule,
+    MatSelectModule,
     MatInputModule,
     MatButtonModule,
     MatTableModule,
@@ -38,6 +43,7 @@ import { Document } from '../../core/models/document.model';
 export class DocumentSearchComponent implements OnInit {
   private fb = inject(FormBuilder);
   private documentService = inject(DocumentService);
+  private documentTypeService = inject(DocumentTypeService);
 
   // Estado
   documents = signal<Document[]>([]);
@@ -45,11 +51,12 @@ export class DocumentSearchComponent implements OnInit {
   loading = signal(false);
   error = signal<string | null>(null);
   selectedDocuments = signal<Set<string>>(new Set());
+  documentTypes = signal<DocumentType[]>([])
 
   // Filtros
   filterForm: FormGroup = this.fb.group({
     name: [''],
-    documentTypeIds: ['']
+    selectedTypeIds: [[]]
   });
 
   // Paginación
@@ -77,19 +84,28 @@ export class DocumentSearchComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.loadDocumentTypes();
     this.onSearch();
   }
 
-  onSearch(): void {
-    const { name, documentTypeIds } = this.filterForm.value;
-    const typeIdsArray = documentTypeIds
-      ? documentTypeIds.split(',').map((s: string) => s.trim()).filter(Boolean)
-      : [];
+  loadDocumentTypes(): void {
+    this.documentTypeService.getDocumentTypes().subscribe({
+      next: (types) => this.documentTypes.set(types),
+      error: (err) => console.error('Error cargando tipos', err)
+    });
+  }
 
+  onSearch(): void {
+    const { name, selectedTypeIds } = this.filterForm.value;
     this.loading.set(true);
     this.error.set(null);
 
-    this.documentService.searchDocuments(this.pageIndex(), this.pageSize(), name, typeIdsArray).subscribe({
+    this.documentService.searchDocuments(
+      this.pageIndex(),
+      this.pageSize(),
+      name,
+      selectedTypeIds // <-- array de IDs
+    ).subscribe({
       next: (result) => {
         this.documents.set(result.documents);
         this.totalCount.set(result.totalCount);
@@ -103,10 +119,11 @@ export class DocumentSearchComponent implements OnInit {
   }
 
   onClear(): void {
-    this.filterForm.reset({ name: '', documentTypeIds: '' });
+    this.filterForm.reset({ name: '', selectedTypeIds: [] });
     this.pageIndex.set(0);
     this.onSearch();
   }
+
 
   onPageChange(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);

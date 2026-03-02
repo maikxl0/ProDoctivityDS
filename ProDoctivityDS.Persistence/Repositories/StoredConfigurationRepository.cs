@@ -32,6 +32,7 @@ namespace ProDoctivityDS.Persistence.Repositories
             entity.CookieSessionId = _encryption.Decrypt(entity.CookieSessionId);
 
             return _mapper.Map<StoredConfiguration>(entity);
+        
         }
 
         public async Task UpdateConfigurationAsync(StoredConfiguration configuration)
@@ -54,8 +55,8 @@ namespace ProDoctivityDS.Persistence.Repositories
             }
             else
             {
-                entity.Id = existing.Id;
-                _context.Entry(existing).CurrentValues.SetValues(entity);
+                _context.StoredConfigurations.Remove(existing);
+                _context.StoredConfigurations.Add(entity);
             }
 
             await _context.SaveChangesAsync();

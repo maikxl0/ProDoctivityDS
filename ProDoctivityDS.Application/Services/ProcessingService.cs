@@ -1,5 +1,4 @@
-﻿using AutoMapper;
-using Domain.Interfaces.Repositories;
+﻿using Domain.Interfaces.Repositories;
 using Microsoft.Extensions.Logging;
 using ProDoctivityDS.Application.Dtos.Request;
 using ProDoctivityDS.Application.Dtos.Response;
@@ -45,23 +44,23 @@ namespace ProDoctivityDS.Application.Services
         }
 
         public async Task ProcessDocumentsAsync(
-            ProcessRequestDto request,
-            string sessionId,
-            CancellationToken cancellationToken = default)
+    ProcessRequestDto request,
+    string sessionId,
+    CancellationToken cancellationToken = default)
         {
-            // 1. Obtener configuración activa (incluye credenciales API, opciones de procesamiento y reglas de análisis)
+            // 1. Obtener configuración activa
             var config = await _configurationRepository.GetActiveConfigurationAsync();
             var processingOptions = config.ProcessingOptions ?? new ProcessingOptions();
             var analysisRules = config.AnalysisRules ?? new AnalysisRuleSet();
 
-            // Aplicar sobreescritura de opciones si vienen en la request
+            // Sobrescribir opciones con las de la request si vienen
             bool updateApi = request.UpdateApi ?? processingOptions.UpdateApi;
             bool saveOriginals = request.SaveOriginals ?? processingOptions.SaveOriginalFiles;
 
             int total = request.DocumentIds.Count;
             int processed = 0, updated = 0, pagesRemoved = 0, errors = 0, skipped = 0;
 
-            // Inicializar progreso en store
+            // Inicializar progreso
             var initialProgress = new ProcessProgressDto
             {
                 Total = total,
@@ -75,28 +74,15 @@ namespace ProDoctivityDS.Application.Services
             };
             _progressStore.UpdateProgress(sessionId, initialProgress);
 
-            // Log inicial
-            await _logRepository.SaveEntityAsync(new ActivityLogEntry
-            {
-                Timestamp = DateTime.UtcNow,
-                Level = "INFO",
-                Category = "Procesamiento",
-                Message = $"Iniciando procesamiento de {total} documento(s) (sesión: {sessionId})"
-            });
+            await LogAsync("INFO", "Procesamiento",
+                $"Iniciando procesamiento de {total} documento(s) (sesión: {sessionId})");
 
-            // 2. Iterar sobre cada documento solicitado
             for (int i = 0; i < request.DocumentIds.Count; i++)
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    _logger.LogInformation("Procesamiento cancelado por usuario para sesión {SessionId}", sessionId);
-                    await _logRepository.SaveEntityAsync(new ActivityLogEntry
-                    {
-                        Timestamp = DateTime.UtcNow,
-                        Level = "WARNING",
-                        Category = "Procesamiento",
-                        Message = $"Procesamiento cancelado por el usuario (sesión: {sessionId})"
-                    });
+                    await LogAsync("WARNING", "Procesamiento",
+                        $"Procesamiento cancelado por el usuario (sesión: {sessionId})");
                     break;
                 }
 
@@ -105,7 +91,7 @@ namespace ProDoctivityDS.Application.Services
 
                 try
                 {
-                    // 2.1 Obtener información del documento (para nombre, tipo y versión)
+                    // 2.1 Obtener información del documento
                     _logger.LogDebug("Obteniendo información del documento {DocumentId}", documentId);
                     var document = await _apiClient.GetDocumentAsync(
                         config.ApiBaseUrl,
@@ -115,7 +101,7 @@ namespace ProDoctivityDS.Application.Services
 
                     documentName = document.Name;
 
-                    // Actualizar progreso: documento actual
+                    // Actualizar progreso
                     var currentProgress = new ProcessProgressDto
                     {
                         Total = total,
@@ -131,7 +117,7 @@ namespace ProDoctivityDS.Application.Services
                     _progressStore.UpdateProgress(sessionId, currentProgress);
 
                     // 2.2 Obtener la última versión del documento
-                    string versionId = document.LastDocumentVersionId;
+                    string versionId = document.LastDocumentVersionId ?? "";
                     if (string.IsNullOrEmpty(versionId))
                     {
                         _logger.LogInformation("Documento {DocumentId} sin versión directa, consultando versiones", documentId);
@@ -142,7 +128,7 @@ namespace ProDoctivityDS.Application.Services
                             cancellationToken);
 
                         var lastVersion = versions.OrderByDescending(v => v.CreatedAt).FirstOrDefault();
-                        versionId = lastVersion?.DocumentVersionId;
+                        versionId = lastVersion?.DocumentVersionId ?? "";
 
                         if (string.IsNullOrEmpty(versionId))
                         {
@@ -150,81 +136,105 @@ namespace ProDoctivityDS.Application.Services
                         }
                     }
 
-                    // 2.3 Descargar el PDF de esa versión
-                    _logger.LogDebug("Descargando PDF del documento {DocumentId}, versión {VersionId}", documentId, versionId);
+                    // 2.3 Descargar el PDF
                     byte[] pdfBytes = await _apiClient.DownloadPdfAsync(
                         config.ApiBaseUrl,
                         config.BearerToken,
+                        documentId,
                         versionId,
                         cancellationToken);
 
                     if (pdfBytes == null || pdfBytes.Length == 0)
-                    {
                         throw new Exception("El PDF descargado está vacío");
-                    }
 
-                    // 2.4 Guardar original si está configurado
-                    string originalPath = null;
+                    // Guardar original (si está activado)
+                    string originalPath = string.Empty;
                     if (saveOriginals)
                     {
                         originalPath = await _fileStorage.SaveFileAsync(
                             pdfBytes,
-                            documentId,
-                            documentName,
+                            $"{documentId}_original",  // Ej: "699f63cc..._original"
+                            "originals",                // subcarpeta fija
                             cancellationToken);
-                        _logger.LogDebug("Original guardado en {Path}", originalPath);
                     }
 
-                    // 2.5 Analizar la primera página con las reglas configuradas
-                    var analysisResult = await _pdfAnalyzer.AnalyzePdfAsync(pdfBytes, analysisRules, cancellationToken);
-                    bool shouldRemove = analysisResult.ShouldRemove;
+                    
 
-                    _logger.LogDebug("Análisis del documento {DocumentId}: {Diagnosis}", documentId, analysisResult.Diagnosis);
+                    // 2.5 Determinar qué páginas eliminar
+                    var pagesToRemove = new List<int>();
+                    bool anyPageRemoved = false;
 
-                    // 2.6 Decidir si se procesa o se salta
-                    bool pageRemoved = false;
-                    byte[] processedPdf = pdfBytes;
-
-                    if (processingOptions.RemoveFirstPage)
+                    if (processingOptions.AutoRemoveAllSeparators)
                     {
-                        if (processingOptions.OnlyIfCriteriaMet && !shouldRemove)
+                        // MODO AUTOMÁTICO: analizar TODAS las páginas y eliminar las que contengan separadores
+                        _logger.LogInformation("Modo automático activado: analizando todas las páginas del documento {DocumentId}", documentId);
+
+                        int totalPages = await _pdfManipulator.GetPageCountAsync(pdfBytes, cancellationToken);
+                        for (int pageIdx = 0; pageIdx < totalPages; pageIdx++)
                         {
-                            // No cumple criterios → se salta
-                            skipped++;
-                            await _logRepository.SaveEntityAsync(new ActivityLogEntry
+                            var pageResult = await _pdfAnalyzer.AnalyzePageAsync(pdfBytes, pageIdx, analysisRules, cancellationToken);
+                            if (pageResult.ShouldRemove)
                             {
-                                Timestamp = DateTime.UtcNow,
-                                Level = "INFO",
-                                Category = "Procesamiento",
-                                DocumentId = documentId,
-                                Message = $"Documento saltado: no cumple criterios de análisis"
-                            });
-                            processed++; // Contamos como procesado para el progreso (aunque no se modificó)
-                            continue;
+                                pagesToRemove.Add(pageIdx);
+                                if (processingOptions.ShowExtractedText && !string.IsNullOrEmpty(pageResult.ExtractedTextPreview))
+                                {
+                                    _logger.LogDebug("Página {Page} contiene separador. Texto extraído: {Text}",
+                                        pageIdx + 1, pageResult.ExtractedTextPreview);
+                                }
+                            }
                         }
+                        _logger.LogInformation("Se eliminarán {Count} páginas de {Total}", pagesToRemove.Count, totalPages);
+                    }
+                    else if (processingOptions.RemovePagesEnabled)
+                    {
+                        // MODO MANUAL: obtener las páginas según la configuración
+                        var candidatePages = ParsePageRange(processingOptions, await _pdfManipulator.GetPageCountAsync(pdfBytes, cancellationToken));
 
-                        // Eliminar primera página
-                        processedPdf = await _pdfManipulator.RemoveFirstPageAsync(pdfBytes, cancellationToken);
+                        if (processingOptions.AnalyzeAllPages)
+                        {
+                            // Analizar cada página candidata y solo eliminar las que cumplan criterios
+                            foreach (int pageIdx in candidatePages)
+                            {
+                                var pageResult = await _pdfAnalyzer.AnalyzePageAsync(pdfBytes, pageIdx, analysisRules, cancellationToken);
+                                if (pageResult.ShouldRemove)
+                                {
+                                    pagesToRemove.Add(pageIdx);
+                                    if (processingOptions.ShowExtractedText && !string.IsNullOrEmpty(pageResult.ExtractedTextPreview))
+                                    {
+                                        _logger.LogDebug("Página {Page} (candidata) contiene separador. Texto: {Text}",
+                                            pageIdx + 1, pageResult.ExtractedTextPreview);
+                                    }
+                                }
+                                else
+                                {
+                                    _logger.LogDebug("Página {Page} (candidata) NO contiene separador, se conserva", pageIdx + 1);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Eliminar todas las páginas candidatas sin análisis
+                            pagesToRemove.AddRange(candidatePages);
+                        }
+                    }
 
-                        // Verificar si realmente se eliminó (el manipulador devuelve el original si no pudo o si tenía 1 página)
+                    // 2.6 Remover páginas si es necesario
+                    byte[] processedPdf = pdfBytes;
+                    if (pagesToRemove.Any())
+                    {
+                        processedPdf = await _pdfManipulator.RemovePagesAsync(pdfBytes, pagesToRemove.Distinct().OrderBy(x => x), cancellationToken);
                         if (processedPdf.Length != pdfBytes.Length)
                         {
-                            pageRemoved = true;
-                            pagesRemoved++;
-                            _logger.LogDebug("Primera página removida del documento {DocumentId}", documentId);
+                            anyPageRemoved = true;
+                            pagesRemoved += pagesToRemove.Count;
+                            _logger.LogInformation("Se eliminaron {Count} páginas del documento {DocumentId}", pagesToRemove.Count, documentId);
                         }
                     }
 
-                    // 2.7 Guardar PDF procesado (si se modificó o no, siempre lo guardamos para tener registro)
-                    string processedPath = await _fileStorage.SaveFileAsync(
-                        processedPdf,
-                        documentId,
-                        documentName,
-                        cancellationToken);
 
-                    // 2.8 Actualizar en API si corresponde (solo si se removió página y updateApi=true)
+                    // 2.7 Actualizar en API si corresponde
                     bool apiUpdated = false;
-                    if (updateApi && pageRemoved)
+                    if (updateApi && anyPageRemoved)
                     {
                         _logger.LogDebug("Subiendo PDF procesado a la API para documento {DocumentId}", documentId);
                         apiUpdated = await _apiClient.UploadPdfAsync(
@@ -233,44 +243,49 @@ namespace ProDoctivityDS.Application.Services
                             documentName,
                             processedPdf,
                             document.DocumentTypeId,
-                            versionId, // versión padre para crear nueva versión
+                            versionId,
                             cancellationToken);
 
                         if (apiUpdated)
                         {
                             updated++;
-                            _logger.LogDebug("Documento {DocumentId} actualizado en API", documentId);
                         }
                         else
                         {
                             _logger.LogWarning("Fallo al actualizar documento {DocumentId} en API", documentId);
-                            // No incrementamos errors aquí porque el procesamiento local fue exitoso,
-                            // pero podríamos contar como error parcial si se desea.
                         }
                     }
 
-                    // 2.9 Registrar resultado en base de datos local
-                    var processedDoc = new ProcessedDocument
+                    
+                    if (processingOptions.CreateBackup)
                     {
-                        DocumentId = documentId,
-                        OriginalFileName = documentName,
-                        ProcessedFilePath = processedPath,
-                        OriginalFilePath = originalPath,
-                        PagesRemoved = pageRemoved ? 1 : 0,
-                        ApiUpdated = apiUpdated,
-                        ProcessingDate = DateTime.UtcNow,
-                        ErrorMessage = null
-                    };
-                    await _processedDocumentRepository.SaveEntityAsync(processedDoc);
 
-                    await _logRepository.SaveEntityAsync(new ActivityLogEntry
-                    {
-                        Timestamp = DateTime.UtcNow,
-                        Level = "SUCCESS",
-                        Category = "Procesamiento",
-                        DocumentId = documentId,
-                        Message = pageRemoved ? "Documento procesado (página removida)" : "Documento procesado (sin cambios)"
-                    });
+                        // 2.8 Guardar PDF procesado
+                        // Guardar procesado
+                        string processedPath = await _fileStorage.SaveFileAsync(
+                            processedPdf,
+                            $"{documentId}_processed",
+                            "processed",
+                            cancellationToken);
+
+                        // 2.9 Registrar en base de datos local
+                        var processedDoc = new ProcessedDocument
+                        {
+                            DocumentId = documentId,
+                            OriginalFileName = documentName,
+                            ProcessedFilePath = processedPath,
+                            OriginalFilePath = originalPath,
+                            PagesRemoved = pagesToRemove.Count,
+                            ApiUpdated = apiUpdated,
+                            ProcessingDate = DateTime.UtcNow,
+                            ErrorMessage = null
+                        };
+                        await _processedDocumentRepository.SaveEntityAsync(processedDoc);
+                    }
+
+                    await LogAsync("SUCCESS", "Procesamiento",
+                        anyPageRemoved ? "Documento procesado (páginas removidas)" : "Documento procesado (sin cambios)",
+                        documentId);
 
                     processed++;
                 }
@@ -278,17 +293,8 @@ namespace ProDoctivityDS.Application.Services
                 {
                     errors++;
                     _logger.LogError(ex, "Error procesando documento {DocumentId} en sesión {SessionId}", documentId, sessionId);
+                    await LogAsync("ERROR", "Procesamiento", $"Error: {ex.Message}", documentId);
 
-                    await _logRepository.SaveEntityAsync(new ActivityLogEntry
-                    {
-                        Timestamp = DateTime.UtcNow,
-                        Level = "ERROR",
-                        Category = "Procesamiento",
-                        DocumentId = documentId,
-                        Message = $"Error: {ex.Message}"
-                    });
-
-                    // Registrar el fallo en ProcessedDocument (opcional)
                     var failedDoc = new ProcessedDocument
                     {
                         DocumentId = documentId,
@@ -315,7 +321,7 @@ namespace ProDoctivityDS.Application.Services
                 _progressStore.UpdateProgress(sessionId, afterProgress);
             }
 
-            // 3. Progreso final
+            // Progreso final
             var finalProgress = new ProcessProgressDto
             {
                 Total = total,
@@ -330,13 +336,67 @@ namespace ProDoctivityDS.Application.Services
 
             string summary = $"Procesamiento finalizado. Procesados: {processed}, Actualizados: {updated}, Páginas removidas: {pagesRemoved}, Errores: {errors}, Saltados: {skipped}";
             _logger.LogInformation(summary);
+            await LogAsync("INFO", "Procesamiento", summary);
+        }
+
+        // Método auxiliar para registrar en log y BD
+        private async Task LogAsync(string level, string category, string message, string documentId = null)
+        {
+            _logger.Log(GetLogLevel(level), message);
             await _logRepository.SaveEntityAsync(new ActivityLogEntry
             {
                 Timestamp = DateTime.UtcNow,
-                Level = "INFO",
-                Category = "Procesamiento",
-                Message = summary
+                Level = level,
+                Category = category,
+                DocumentId = documentId,
+                Message = message
             });
+        }
+
+        private static LogLevel GetLogLevel(string level) => level switch
+        {
+            "ERROR" => LogLevel.Error,
+            "WARNING" => LogLevel.Warning,
+            "SUCCESS" => LogLevel.Information,
+            _ => LogLevel.Information
+        };
+
+        // Método para parsear la configuración de páginas
+        private List<int> ParsePageRange(ProcessingOptions options, int totalPages)
+        {
+            var pages = new List<int>();
+            if (options.RemoveMode == "specific" && !string.IsNullOrWhiteSpace(options.PagesToRemove))
+            {
+                var parts = options.PagesToRemove.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                foreach (var part in parts)
+                {
+                    var trimmed = part.Trim();
+                    if (trimmed.Contains('-'))
+                    {
+                        var range = trimmed.Split('-');
+                        if (range.Length == 2 && int.TryParse(range[0], out int start) && int.TryParse(range[1], out int end))
+                        {
+                            start = Math.Max(1, start);
+                            end = Math.Min(totalPages, end);
+                            for (int p = start; p <= end; p++)
+                                pages.Add(p - 1); // convertir a 0-based
+                        }
+                    }
+                    else if (int.TryParse(trimmed, out int single))
+                    {
+                        if (single >= 1 && single <= totalPages)
+                            pages.Add(single - 1);
+                    }
+                }
+            }
+            else if (options.RemoveMode == "range")
+            {
+                int start = Math.Max(1, options.PageRangeStart);
+                int end = Math.Min(totalPages, options.PageRangeEnd);
+                for (int p = start; p <= end; p++)
+                    pages.Add(p - 1);
+            }
+            return pages.Distinct().OrderBy(x => x).ToList();
         }
     }
 }

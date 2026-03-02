@@ -1,0 +1,128 @@
+.config-container {
+  padding: 20px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.tab-content {
+  padding: 20px 0;
+}
+
+.api-group, .options-group, .analysis-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.flex-field {
+  flex: 1 1 300px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.criteria-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.criteria-text {
+  flex: 1;
+}
+
+.normalization-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid #e0e0e0;
+  padding: 16px;
+  border-radius: 4px;
+}
+
+.norm-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 20px;
+}
+
+.norm-options.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.global-actions {
+  margin-top: 30px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+h3 {
+  margin: 16px 0 8px;
+  color: #333;
+  font-size: 1.1rem;
+}
+.nested-options {
+  margin-left: 20px;
+  padding: 10px;
+  border-left: 2px solid #ccc;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nested-options.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.range-fields {
+  display: flex;
+  gap: 16px;
+}
+
+.small-field {
+  width: 100px;
+}
+.advanced-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.nested-options {
+  margin-left: 24px;
+  padding-left: 16px;
+  border-left: 2px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.range-fields {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}

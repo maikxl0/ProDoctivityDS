@@ -1,8 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
 using PdfSharp.Pdf.IO;
 using ProDoctivityDS.Application.Interfaces;
+using UglyToad.PdfPig;
 
-namespace ProDoctivityDS.PDFManipulator.Services
+namespace ProDoctivityDS.Shared.Services
 {
     public class PdfManipulatorService : IPdfManipulator
     {
@@ -16,40 +17,72 @@ namespace ProDoctivityDS.PDFManipulator.Services
         /// <inheritdoc />
         public async Task<byte[]> RemoveFirstPageAsync(byte[] pdfBytes, CancellationToken cancellationToken = default)
         {
-            // PDFsharp no es asíncrono; lo ejecutamos en un hilo de pool para no bloquear
+            return await RemovePagesAsync(pdfBytes, new[] { 0 }, cancellationToken);
+        }
+        public async Task<byte[]> RemovePagesAsync(
+            byte[] pdfBytes,
+            IEnumerable<int> pageIndices,
+            CancellationToken cancellationToken = default)
+        {
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                _logger.LogWarning("El PDF está vacío o es nulo");
+                return pdfBytes ?? Array.Empty<byte>();
+            }
+
+            var indices = pageIndices?.Distinct().OrderBy(x => x).ToList() ?? new List<int>();
+            if (!indices.Any())
+                return pdfBytes;
+
             return await Task.Run(() =>
             {
-                if (pdfBytes == null || pdfBytes.Length == 0)
-                {
-                    _logger.LogWarning("El PDF está vacío o es nulo");
-                    return pdfBytes ?? Array.Empty<byte>();
-                }
-
                 try
                 {
                     using var inputStream = new MemoryStream(pdfBytes);
                     using var document = PdfReader.Open(inputStream, PdfDocumentOpenMode.Modify);
 
-                    // Si el documento no tiene páginas o solo una, no hacemos nada
-                    if (document.Pages.Count <= 1)
+                    // Eliminar páginas de atrás hacia adelante para no afectar los índices
+                    foreach (var idx in indices.OrderByDescending(i => i))
                     {
-                        _logger.LogDebug("El PDF tiene {PageCount} páginas, no se elimina ninguna", document.Pages.Count);
+                        if (idx >= 0 && idx < document.Pages.Count)
+                            document.Pages.RemoveAt(idx);
+                        else
+                            _logger.LogWarning("Índice de página {Index} fuera de rango (total páginas: {Count})", idx + 1, document.Pages.Count);
+                    }
+
+                    if (document.Pages.Count == 0)
+                    {
+                        _logger.LogWarning("El PDF resultante no tiene páginas. Se devuelve el original.");
                         return pdfBytes;
                     }
 
-                    // Eliminar la primera página (índice 0)
-                    document.Pages.RemoveAt(0);
-                    _logger.LogDebug("Primera página eliminada. Páginas restantes: {PageCount}", document.Pages.Count);
-
                     using var outputStream = new MemoryStream();
                     document.Save(outputStream, false);
+                    _logger.LogDebug("Páginas eliminadas: {Indices}. Páginas restantes: {Count}",
+                        string.Join(", ", indices.Select(i => i + 1)), document.Pages.Count);
                     return outputStream.ToArray();
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error al eliminar la primera página del PDF");
-                    // En caso de error, retornamos el PDF original (comportamiento del WinForms original)
+                    _logger.LogError(ex, "Error al eliminar páginas del PDF");
                     return pdfBytes;
+                }
+            }, cancellationToken);
+        }
+        public async Task<int> GetPageCountAsync(byte[] pdfBytes, CancellationToken cancellationToken = default)
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    using var stream = new MemoryStream(pdfBytes);
+                    using var pdf = PdfDocument.Open(stream);
+                    return pdf.NumberOfPages;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error al obtener número de páginas");
+                    return 0;
                 }
             }, cancellationToken);
         }

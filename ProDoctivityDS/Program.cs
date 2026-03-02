@@ -43,8 +43,17 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+builder.Services.AddDistributedMemoryCache(); // Almacena sesiones en memoria (para desarrollo)
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(20); // Tiempo de expiración
+    options.Cookie.HttpOnly = true; // Seguridad: la cookie no es accesible desde JavaScript
+    options.Cookie.IsEssential = true; // Necesario para GDPR
+    options.Cookie.Name = ".Prodoctivity.Session"; // Nombre personalizado (opcional)
+});
 
-
+var keyRingPath = Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys");
+Directory.CreateDirectory(keyRingPath);
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys")))
     .SetApplicationName("ProDoctivityDS");
@@ -63,8 +72,18 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseSession();
+app.UseCors(policy => policy
+    .WithOrigins("http://localhost:4200")
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+    .AllowCredentials());
+
 app.UseAuthorization();
 app.MapControllers();
+
+
 
 using (var scope = app.Services.CreateScope())
 {

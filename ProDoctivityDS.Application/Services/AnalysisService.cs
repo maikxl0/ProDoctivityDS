@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using ProDoctivityDS.Application.Dtos.Request;
 using ProDoctivityDS.Application.Dtos.Response;
+using ProDoctivityDS.Application.Dtos.ValueObjects;
 using ProDoctivityDS.Application.Interfaces;
 using ProDoctivityDS.Domain.Entities;
 using ProDoctivityDS.Domain.Entities.ValueObjects;

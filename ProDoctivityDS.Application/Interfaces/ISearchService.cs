@@ -11,7 +11,14 @@ namespace ProDoctivityDS.Application.Interfaces
         /// <param name="request">Filtros de búsqueda (tipo de documento, nombre, paginación).</param>
         /// <param name="cancellationToken">Token de cancelación.</param>
         /// <returns>Respuesta paginada con los documentos encontrados.</returns>
-        Task<SearchDocumentsResponseDto> SearchAsync(SearchDocumentsRequestDto request, CancellationToken cancellationToken = default);
+        Task<SearchDocumentsResponseDto> SearchAllAsync(SearchDocumentsRequestDto request, CancellationToken cancellationToken = default);
+        /// <summary>
+        /// Ejecuta una búsqueda de documentos en Productivity Cloud aplicando los filtros especificados.
+        /// </summary>
+        /// <param name="request">Filtros de búsqueda (tipo de documento, nombre, paginación).</param>
+        /// <param name="cancellationToken">Token de cancelación.</param>
+        /// <returns>Respuesta paginada con los documentos encontrados.</returns>
+        Task<SearchDocumentsPOSTResponseDto> SearchAsync(SearchDocumentsPOSTRequestDto request, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Obtiene un documento específico por su ID (incluye metadatos completos).

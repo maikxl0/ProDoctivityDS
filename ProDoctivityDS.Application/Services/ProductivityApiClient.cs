@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
 using ProDoctivityDS.Application.Dtos.ProDoctivity;
+using ProDoctivityDS.Application.Dtos.Response;
 using ProDoctivityDS.Application.Interfaces;
+using System.ComponentModel;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -45,12 +47,9 @@ namespace ProDoctivityDS.Application.Services
             return client;
         }
 
-        // ---------- GetDocumentsAsync ----------
-        public async Task<(List<ProductivityDocumentDto> Documents, int TotalCount)> GetDocumentsAsync(
+        public async Task<(List<ProductivityDocumentDto> Documents, int TotalCount)> GetAllDocumentsAsync(
             string baseUrl,
             string bearerToken,
-            string? documentTypeIds,
-            string? name,
             int page,
             int pageSize,
             string? apiKey = null,
@@ -70,37 +69,9 @@ namespace ProDoctivityDS.Application.Services
 
                 var client = CreateClient(baseUrl, bearerToken, apiKey, apiSecret, cookie);
 
-                bool hasQuery = !string.IsNullOrWhiteSpace(name);
-                bool hasTypeFilters = documentTypeIds != null && documentTypeIds.Any();
-                HttpRequestMessage request;
-                string url;
+                string url = $"app/documents?dateStart=0&pageNumber={page}&rowsPerPage={pageSize}&sortField=updatedAt&sortDirection=DESC";
 
-                if (hasQuery || hasTypeFilters)
-                {
-                    url = $"app/search?pageNumber={page}&rowsPerPage={pageSize}";
-                    if (hasQuery)
-                        url += $"&query={Uri.EscapeDataString(name!)}";
-
-                    var payload = new
-                    {
-                        fields = new List<string>(),
-                        documentTypeIds = hasTypeFilters ? documentTypeIds : "",
-                        includeApproximateResults = false
-                    };
-
-                    string jsonPayload = JsonSerializer.Serialize(payload, _jsonOptions);
-                    request = new HttpRequestMessage(HttpMethod.Post, url)
-                    {
-                        Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
-                    };
-                }
-                else
-                {
-                    url = $"app/documents?dateStart=0&pageNumber={page}&rowsPerPage={pageSize}&sortField=updatedAt&sortDirection=DESC";
-                    request = new HttpRequestMessage(HttpMethod.Get, url);
-                
-                    _logger.LogDebug("GET {Url}", url);
-                }
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
 
                 var response = await client.SendAsync(request, cancellationToken);
 
@@ -117,6 +88,106 @@ namespace ProDoctivityDS.Application.Services
 
                 var documents = searchResponse?.Documents?.ToList() ?? new List<ProductivityDocumentDto>();
                 int totalCount = searchResponse?.Total ?? documents.Count;
+
+                return (documents, totalCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en GetAllDocumentsAsync");
+                throw;
+            }
+        }
+
+
+        // ---------- GetDocumentsAsync ----------
+        public async Task<(List<POSTDocumentDto> Documents, int TotalCount)> GetDocumentsAsync(
+            string baseUrl,
+            string bearerToken,
+            List<string>? documentTypeIds,
+            string? query,
+            int page,
+            int pageSize,
+            string? apiKey = null,
+            string? apiSecret = null,
+            string? cookie = null,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                // Validar pageSize (15, 30, 100)
+                int[] allowedPageSizes = { 15, 30, 100 };
+                if (!allowedPageSizes.Contains(pageSize))
+                {
+                    _logger.LogWarning("pageSize {PageSize} no válido. Se usará 100.", pageSize);
+                    pageSize = 100;
+                }
+
+                var client = CreateClient(baseUrl, bearerToken, apiKey, apiSecret, cookie);
+
+                bool hasQuery = !string.IsNullOrWhiteSpace(query);
+                bool hasTypeFilters = documentTypeIds != null && documentTypeIds.Any();
+                HttpRequestMessage request;
+
+                // Construir URL base (siempre con paginación)
+                string url = $"app/search?pageNumber={page}&rowsPerPage={pageSize}";
+
+                // Si hay query, agregarlo a la URL (como en el ejemplo funcional)
+                if (hasQuery)
+                {
+                    url += $"&query={Uri.EscapeDataString(query!)}";
+                }
+
+
+                if (hasTypeFilters)
+                {
+                    // Si hay filtros de tipo de documento, enviar payload con los nombres en minúsculas
+                    var payload = new
+                    {
+                        fields = new List<string>(),
+                        documentTypeIds = documentTypeIds,
+                        includeApproximateResults = false
+                    };
+
+                    string jsonPayload = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+                    {
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase // Asegura minúsculas
+                    });
+
+                    request = new HttpRequestMessage(HttpMethod.Post, url)
+                    {
+                        Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
+                    };
+                }
+                else
+                {
+                    // Solo query (sin documentTypeIds): cuerpo vacío (como en el ejemplo funcional)
+                    request = new HttpRequestMessage(HttpMethod.Post, url)
+                    {
+                        Content = new StringContent("", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                // Enviar petición
+                var response = await client.SendAsync(request, cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError("Error {StatusCode}. Respuesta: {Error}", response.StatusCode, errorContent);
+                    response.EnsureSuccessStatusCode();
+                }
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogDebug("Respuesta completa: {Json}", json); // Para depurar
+
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true // Permite coincidir aunque haya diferencias de mayúsculas/minúsculas
+                };
+                var searchResponse = JsonSerializer.Deserialize<ProductivitySearchPOSTResponseDto>(json, options);
+
+                var documents = searchResponse?.Results ?? new List<POSTDocumentDto>();
+                int totalCount = searchResponse?.TotalRowCount ?? documents.Count;
 
                 return (documents, totalCount);
             }
@@ -142,9 +213,10 @@ namespace ProDoctivityDS.Application.Services
                 response.EnsureSuccessStatusCode();
 
                 var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                var dto = JsonSerializer.Deserialize<ProductivityDocumentDto>(json, _jsonOptions);
+                var container = JsonSerializer.Deserialize<ProductivityDocumentResponse>(json, _jsonOptions);
+                var document = container?.Document ?? throw new Exception("No se encontró la propiedad 'document' en la respuesta");
 
-                return dto;
+                return document;
             }
             catch (Exception ex)
             {
@@ -164,21 +236,14 @@ namespace ProDoctivityDS.Application.Services
             try
             {
                 var client = CreateClient(baseUrl, bearerToken);
-                var url = $"documents/{documentId}/versions";
+                var url = $"app/documents/{documentId}/versions-list";
                 var response = await client.GetAsync(url, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
                 var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                var versions = JsonSerializer.Deserialize<List<ProductivityVersionDto>>(json, _jsonOptions);
-                return versions?
-                    .Select(v => new ProductivityVersionDto
-                    {
-                        DocumentVersionId = v.DocumentVersionId ?? v.Id ?? string.Empty,
-                        Version = v.Version,
-                        CreatedAt = v.CreatedAt,
-                        Binaries = v.Binaries
-                    })
-                    .ToList() ?? new List<ProductivityVersionDto>();
+                var versions = JsonSerializer.Deserialize<DocumentVersionsResponse>(json, _jsonOptions);
+                return versions?.DocumentVersions ?? new List<ProductivityVersionDto>();
+
             }
             catch (Exception ex)
             {
@@ -187,26 +252,49 @@ namespace ProDoctivityDS.Application.Services
             }
         }
 
+        // ---------- GetDocumentTypesAsync ----------
+        public async Task<List<DocumentTypeDto>> GetDocumentTypesAsync(
+            string baseUrl,
+            string bearerToken,
+            string? apiKey = null,
+            string? apiSecret = null,
+            string? cookie = null,
+            CancellationToken cancellationToken = default)
+        {
+            var client = CreateClient(baseUrl, bearerToken, apiKey, apiSecret, cookie);
+            var url = "ecm/document-types";
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
+
+            var response = await client.SendAsync(request, cancellationToken);
+
+            response.EnsureSuccessStatusCode();
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var container = JsonSerializer.Deserialize<DocumentTypeListResponse>(json, _jsonOptions);
+            return container?.DocumentTypes ?? new List<DocumentTypeDto>();
+        }
+
         // ---------- DownloadPdfAsync ----------
         public async Task<byte[]> DownloadPdfAsync(
             string baseUrl,
             string bearerToken,
+            string documentId,
             string versionId,
             CancellationToken cancellationToken = default)
         {
             try
             {
                 var client = CreateClient(baseUrl, bearerToken);
-                var url = $"documents/versions/{versionId}"; // Asumiendo endpoint directo
+                var url = $"app/documents/{documentId}/versions/{versionId}"; // Asumiendo endpoint directo
                 var response = await client.GetAsync(url, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
                 var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                var detail = JsonSerializer.Deserialize<ProductivityDocumentDetailDto>(json, _jsonOptions);
+                var detail = JsonSerializer.Deserialize<DocumentVersionDetailResponse>(json, _jsonOptions);
 
-                // Buscar el primer binario PDF en data URL
-                var binaries = detail?.Binaries ?? detail?.Document?.Data as List<string> ?? new List<string>();
-                var pdfDataUrl = binaries.FirstOrDefault(b => b.StartsWith("data:application/pdf") || b.StartsWith("data:application/octet-stream"));
+                /// Extraer el primer data URL que sea PDF
+                var pdfDataUrl = detail?.Document?.Binaries?
+                    .FirstOrDefault(b => b.Contains("application/pdf") || b.Contains("application/octet-stream"));
 
                 if (string.IsNullOrEmpty(pdfDataUrl))
                 {
@@ -215,6 +303,7 @@ namespace ProDoctivityDS.Application.Services
                 }
 
                 return DataUrlToBytes(pdfDataUrl);
+            
             }
             catch (Exception ex)
             {
@@ -222,6 +311,7 @@ namespace ProDoctivityDS.Application.Services
                 throw;
             }
         }
+
 
         // ---------- UploadPdfAsync ----------
         public async Task<bool> UploadPdfAsync(
@@ -278,12 +368,8 @@ namespace ProDoctivityDS.Application.Services
 
         private byte[] DataUrlToBytes(string dataUrl)
         {
-            var parts = dataUrl.Split(new[] { ',' }, 2);
-            if (parts.Length < 2)
-                return Array.Empty<byte>();
-
-            var base64 = parts[1];
-            return Convert.FromBase64String(base64);
+            var base64Data = dataUrl.Substring(dataUrl.IndexOf(",") + 1);
+            return Convert.FromBase64String(base64Data);
         }
 
         private string BytesToDataUrl(byte[] bytes, string mimeType)

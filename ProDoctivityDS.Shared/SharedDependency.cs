@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using ProDoctivityDS.Application.Interfaces;
 using ProDoctivityDS.Domain.Interfaces;
-using ProDoctivityDS.PDFManipulator.Services;
 using ProDoctivityDS.Shared.Services;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 

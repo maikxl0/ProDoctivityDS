@@ -1,0 +1,159 @@
+<div class="config-container">
+  <h2>Configuración del Sistema</h2>
+
+  <mat-tab-group dynamicHeight>
+    <!-- Pestaña: Credenciales API -->
+    <mat-tab label="API">
+      <div class="tab-content" [formGroup]="configForm">
+        <div formGroupName="apiCredentials" class="api-group">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>URL Base</mat-label>
+            <input matInput formControlName="baseUrl" placeholder="https://cloud.prodoctivity.com/api/">
+            <mat-error *ngIf="configForm.get('apiCredentials.baseUrl')?.hasError('required')">
+              La URL es requerida
+            </mat-error>
+            <mat-error *ngIf="configForm.get('apiCredentials.baseUrl')?.hasError('pattern')">
+              Debe ser una URL válida (http:// o https://)
+            </mat-error>
+          </mat-form-field>
+
+          <div class="field-row">
+            <mat-form-field appearance="outline" class="flex-field">
+              <mat-label>API Key</mat-label>
+              <input matInput formControlName="apiKey" [type]="hideApiKey ? 'password' : 'text'">
+              <button mat-icon-button matSuffix (click)="hideApiKey = !hideApiKey">
+                <mat-icon>{{hideApiKey ? 'visibility_off' : 'visibility'}}</mat-icon>
+              </button>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="flex-field">
+              <mat-label>API Secret</mat-label>
+              <input matInput formControlName="apiSecret" [type]="hideApiSecret ? 'password' : 'text'">
+              <button mat-icon-button matSuffix (click)="hideApiSecret = !hideApiSecret">
+                <mat-icon>{{hideApiSecret ? 'visibility_off' : 'visibility'}}</mat-icon>
+              </button>
+            </mat-form-field>
+          </div>
+
+          <div class="field-row">
+            <mat-form-field appearance="outline" class="flex-field">
+              <mat-label>Bearer Token</mat-label>
+              <input matInput formControlName="bearerToken" [type]="hideBearerToken ? 'password' : 'text'">
+              <button mat-icon-button matSuffix (click)="hideBearerToken = !hideBearerToken">
+                <mat-icon>{{hideBearerToken ? 'visibility_off' : 'visibility'}}</mat-icon>
+              </button>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="flex-field">
+              <mat-label>Cookie Session ID</mat-label>
+              <input matInput formControlName="cookieSessionId" [type]="hideCookie ? 'password' : 'text'">
+              <button mat-icon-button matSuffix (click)="hideCookie = !hideCookie">
+                <mat-icon>{{hideCookie ? 'visibility_off' : 'visibility'}}</mat-icon>
+              </button>
+            </mat-form-field>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button mat-raised-button color="accent" (click)="onTestConnection()">
+            <mat-icon>wifi</mat-icon> Probar Conexión
+          </button>
+          <button mat-stroked-button (click)="onExport()">
+            <mat-icon>download</mat-icon> Exportar
+          </button>
+          <button mat-stroked-button (click)="fileInput.click()">
+            <mat-icon>upload</mat-icon> Importar
+          </button>
+          <input #fileInput type="file" accept=".json" style="display:none" (change)="onImport($event)">
+        </div>
+      </div>
+    </mat-tab>
+
+    <mat-tab label="Procesamiento">
+  <div class="tab-content" [formGroup]="configForm">
+    <div formGroupName="processingOptions" class="options-group">
+
+      <!-- Opciones existentes (no las borres) -->
+      <mat-checkbox formControlName="removeFirstPage">Remover primera página de PDFs</mat-checkbox>
+      <mat-checkbox formControlName="onlyIfCriteriaMet">Solo si cumple criterios de análisis</mat-checkbox>
+      <mat-checkbox formControlName="updateApi">Actualizar documentos en la API</mat-checkbox>
+      <mat-checkbox formControlName="saveOriginalFiles">Guardar originales</mat-checkbox>
+      <mat-checkbox formControlName="autoRemoveAllSeparators">Auto-remover todos los separadores</mat-checkbox>
+      <mat-checkbox formControlName="createBackup">Crear backup de datos</mat-checkbox>
+
+      <!-- Nuevas opciones de eliminación avanzada -->
+      <mat-checkbox formControlName="removePagesEnabled">Activar eliminación de páginas</mat-checkbox>
+
+      <div class="remove-options" *ngIf="configForm.get('processingOptions.removePagesEnabled')?.value">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Páginas a eliminar (ej. 1,3-5,7)</mat-label>
+          <input matInput formControlName="pagesToRemove">
+        </mat-form-field>
+
+        <mat-radio-group formControlName="removeMode" class="radio-group">
+          <mat-radio-button value="specific">Páginas específicas</mat-radio-button>
+          <mat-radio-button value="range">Rango de páginas</mat-radio-button>
+        </mat-radio-group>
+
+        <div class="range-fields" *ngIf="configForm.get('processingOptions.removeMode')?.value === 'range'">
+          <mat-form-field appearance="outline" class="range-field">
+            <mat-label>Inicio</mat-label>
+            <input matInput type="number" formControlName="pageRangeStart" min="1">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="range-field">
+            <mat-label>Fin</mat-label>
+            <input matInput type="number" formControlName="pageRangeEnd" min="1">
+          </mat-form-field>
+        </div>
+      </div>
+
+      <mat-checkbox formControlName="analyzeAllPages">Analizar todas las páginas antes de eliminar</mat-checkbox>
+      <mat-checkbox formControlName="showExtractedText">Mostrar texto extraído en logs</mat-checkbox>
+
+    </div>
+  </div>
+</mat-tab>
+
+    <!-- Pestaña: Reglas de Análisis -->
+    <mat-tab label="Análisis">
+      <div class="tab-content" [formGroup]="configForm">
+        <div formGroupName="analysisRules" class="analysis-group">
+          <h3>Criterios (OR)</h3>
+          <div class="criteria-row" formGroupName="criterion1">
+            <mat-form-field appearance="outline" class="criteria-text">
+              <mat-label>Criterio 1</mat-label>
+              <input matInput formControlName="text">
+            </mat-form-field>
+            <mat-checkbox formControlName="isRegex">Regex</mat-checkbox>
+          </div>
+
+          <div class="criteria-row" formGroupName="criterion2">
+            <mat-form-field appearance="outline" class="criteria-text">
+              <mat-label>Criterio 2</mat-label>
+              <input matInput formControlName="text">
+            </mat-form-field>
+            <mat-checkbox formControlName="isRegex">Regex</mat-checkbox>
+          </div>
+
+          <h3>Normalización de Texto</h3>
+          <div formGroupName="normalization" class="normalization-group">
+            <mat-checkbox formControlName="isEnabled">Activar normalización</mat-checkbox>
+            <div class="norm-options" [class.disabled]="!configForm.get('analysisRules.normalization.isEnabled')?.value">
+              <mat-checkbox formControlName="toUpperCase">Convertir a mayúsculas</mat-checkbox>
+              <mat-checkbox formControlName="removeAccents">Remover acentos</mat-checkbox>
+              <mat-checkbox formControlName="removePunctuation">Remover puntuación</mat-checkbox>
+              <mat-checkbox formControlName="ignoreLineBreaks">Ignorar saltos de línea</mat-checkbox>
+              <mat-checkbox formControlName="trimExtraSpaces">Eliminar espacios extras</mat-checkbox>
+            </div>
+          </div>
+        </div>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+
+  <div class="global-actions">
+    <button mat-raised-button color="primary" (click)="onSave()">
+      <mat-icon>save</mat-icon> Guardar Configuración
+    </button>
+  </div>
+</div>

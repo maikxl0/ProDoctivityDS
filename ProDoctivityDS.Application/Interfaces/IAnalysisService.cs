@@ -1,6 +1,6 @@
 ﻿using ProDoctivityDS.Application.Dtos.Request;
 using ProDoctivityDS.Application.Dtos.Response;
-using ProDoctivityDS.Domain.Entities.ValueObjects;
+using ProDoctivityDS.Application.Dtos.ValueObjects;
 
 namespace ProDoctivityDS.Application.Interfaces
 {

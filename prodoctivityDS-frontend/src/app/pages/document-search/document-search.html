@@ -1,15 +1,20 @@
 <div class="search-container">
   <form [formGroup]="filterForm" (ngSubmit)="onSearch()" class="filter-form">
     <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Nombre del documento</mat-label>
-      <input matInput formControlName="name" placeholder="Buscar por nombre...">
+      <mat-label>Buscar en documento </mat-label>
+      <input matInput formControlName="name" placeholder="Buscar...">
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Type IDs (separados por coma)</mat-label>
-      <input matInput formControlName="documentTypeIds" placeholder="Ej: id1,id2,id3">
+      <mat-label>Tipos de documento</mat-label>
+      <mat-select formControlName="selectedTypeIds" multiple>
+        @for (type of documentTypes(); track type.id) {
+          <mat-option [value]="type.id">{{ type.name }}</mat-option>
+        }
+      </mat-select>
     </mat-form-field>
 
+    
     <div class="button-group">
       <button mat-raised-button color="primary" type="submit">Buscar</button>
       <button mat-button type="button" (click)="onClear()">Limpiar</button>

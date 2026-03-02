@@ -1,6 +1,4 @@
-﻿using ProDoctivityDS.Domain.Entities.ValueObjects;
-
-namespace ProDoctivityDS.Application.Dtos.ValueObjects
+﻿namespace ProDoctivityDS.Application.Dtos.ValueObjects
 {
     public class ConfigurationDto
     {

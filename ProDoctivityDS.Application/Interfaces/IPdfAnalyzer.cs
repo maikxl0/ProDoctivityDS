@@ -1,4 +1,5 @@
-﻿using ProDoctivityDS.Domain.Entities.ValueObjects;
+﻿using ProDoctivityDS.Application.Dtos.ValueObjects;
+using ProDoctivityDS.Domain.Entities.ValueObjects;
 
 namespace ProDoctivityDS.Application.Interfaces
 {
@@ -22,6 +23,19 @@ namespace ProDoctivityDS.Application.Interfaces
         /// <summary>
         /// Analiza un PDF completo y retorna un diagnóstico detallado.
         /// </summary>
-        Task<AnalysisResultDto> AnalyzePdfAsync(byte[] pdfBytes, AnalysisRuleSet rules, CancellationToken cancellationToken = default);
+        
+
+        // Analiza una página específica (pageIndex 0-based)
+        Task<PageAnalysisResult> AnalyzePageAsync(
+            byte[] pdfBytes,
+            int pageIndex,
+            AnalysisRuleSet rules,
+            CancellationToken cancellationToken = default);
+
+        // Mantenemos el método original para compatibilidad (opcional)
+        Task<AnalysisResultDto> AnalyzePdfAsync(
+            byte[] pdfBytes,
+            AnalysisRuleSet rules,
+            CancellationToken cancellationToken = default);
     }
 }

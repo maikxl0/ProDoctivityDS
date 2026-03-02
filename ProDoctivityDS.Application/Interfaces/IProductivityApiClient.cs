@@ -7,11 +7,21 @@ namespace ProDoctivityDS.Application.Interfaces
         /// <summary>
         /// Busca documentos aplicando filtros (paginación, tipo, nombre).
         /// </summary>
-        Task<(List<ProductivityDocumentDto> Documents, int TotalCount)> GetDocumentsAsync(
+        Task<(List<POSTDocumentDto> Documents, int TotalCount)> GetDocumentsAsync(
             string baseUrl,
             string bearerToken,
-            string? documentTypeIds,
-            string? name,
+            List<string>? documentTypeIds,
+            string? query,
+            int page,
+            int pageSize,
+            string? apiKey = null,
+            string? apiSecret = null,
+            string? cookie = null,
+            CancellationToken cancellationToken = default);
+
+        Task<(List<ProductivityDocumentDto> Documents, int TotalCount)> GetAllDocumentsAsync(
+            string baseUrl,
+            string bearerToken,
             int page,
             int pageSize,
             string? apiKey = null,
@@ -43,6 +53,7 @@ namespace ProDoctivityDS.Application.Interfaces
         Task<byte[]> DownloadPdfAsync(
             string baseUrl,
             string bearerToken,
+            string documentId,
             string versionId,
             CancellationToken cancellationToken = default);
 
@@ -56,6 +67,14 @@ namespace ProDoctivityDS.Application.Interfaces
             byte[] pdfContent,
             string documentTypeId,
             string? parentVersionId = null,
+            CancellationToken cancellationToken = default);
+
+        Task<List<DocumentTypeDto>> GetDocumentTypesAsync(
+            string baseUrl,
+            string bearerToken,
+            string? apiKey = null,
+            string? apiSecret = null,
+            string? cookie = null,
             CancellationToken cancellationToken = default);
     }
 }

@@ -14,8 +14,4 @@
     <ProjectReference Include="..\ProDoctivityDS.Application\ProDoctivityDS.Application.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Interfaces\" />
-  </ItemGroup>
-
 </Project>

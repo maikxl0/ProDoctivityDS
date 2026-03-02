@@ -2,21 +2,9 @@
 {
     public class AnalysisRuleSet
     {
-        public Criterion Criterion1 { get; set; } = new Criterion
-        {
-            Text = "SEPARADOR DE DOCUMENTOS",
-            IsRegex = false
-        };
-
-        public Criterion Criterion2 { get; set; } = new Criterion
-        {
-            Text = "DOC-001",
-            IsRegex = false
-        };
-
+        public string KeywordSeparador { get; set; } = "SEPARADOR DE DOCUMENTOS";
+        public string KeywordCodigo { get; set; } = "DOC-001";
         public NormalizationOptions Normalization { get; set; } = new NormalizationOptions();
-
-        // Reservado para futuros cambios (OR es el único por ahora)
-        public string EvaluationLogic { get; set; } = "Or";
+        public int SearchCharacterLimit { get; set; } = 25;
     }
 }

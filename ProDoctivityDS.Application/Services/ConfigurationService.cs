@@ -85,13 +85,13 @@ namespace ProDoctivityDS.Application.Services
                 // Usar el cliente API para intentar obtener un documento (o cualquier endpoint simple)
                 // Por simplicidad, intentamos obtener la primera página de documentos con un límite de 1
                 var (documents, totalCount) = await _apiClient.GetDocumentsAsync(
-            baseUrl: credentials.BaseUrl,
-            bearerToken: credentials.BearerToken,
-            documentTypeIds: null,
-            name: null,
-            page: 0,
-            pageSize: 15,
-            cancellationToken: cancellationToken
+                    baseUrl: credentials.BaseUrl,
+                    bearerToken: credentials.BearerToken,
+                    documentTypeIds: null,
+                    query: null,
+                    page: 0,
+                    pageSize: 15,
+                    cancellationToken: cancellationToken
         );
 
                 var success = documents != null;

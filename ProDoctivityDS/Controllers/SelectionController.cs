@@ -179,7 +179,7 @@ namespace ProDoctivityDS.Controllers
         /// Obtiene los Type IDs únicos de los documentos seleccionados.
         /// Requiere un mapa de documentId → typeId proporcionado por el frontend.
         /// </summary>
-        /// <param name="documentTypeMap">Diccionario con pares documentId:typeId (en query string, ej. ?doc1=type1&doc2=type2)</param>
+        /// <param name="documentTypeMap">Diccionario con pares documentId:typeId (en query string, ej. ?doc1=type1&amp;doc2=type2)</param>
         /// <param name="cancellationToken">Token de cancelación</param>
         /// <returns>Lista de Type IDs únicos</returns>
         /// <response code="200">Lista de Type IDs</response>

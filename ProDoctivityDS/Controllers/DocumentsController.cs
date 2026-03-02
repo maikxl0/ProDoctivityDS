@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Linq;
+using Microsoft.AspNetCore.Mvc;
 using ProDoctivityDS.Application.Dtos.Request;
 using ProDoctivityDS.Application.Dtos.Response;
 using ProDoctivityDS.Application.Interfaces;
@@ -22,10 +23,8 @@ namespace ProDoctivityDS.Controllers
         }
 
         /// <summary>
-        /// Busca documentos aplicando filtros opcionales (tipo, nombre, paginación)
+        /// Buscar todos los documentos aplicando filtros opcionales (tipo, nombre, paginación)
         /// </summary>
-        /// <param name="documentTypeIds">Lista de IDs de tipos de documento (separados por comas) opcional</param>
-        /// <param name="query">Filtro por nombre (opcional)</param>
         /// <param name="page">Número de página (por defecto 0)</param>
         /// <param name="rowsPerPage">Filas por página (por defecto 100, máximo 500)</param>
         /// <param name="cancellationToken">Token de cancelación</param>
@@ -39,7 +38,61 @@ namespace ProDoctivityDS.Controllers
         [ProducesResponseType(400)]
         [ProducesResponseType(401)]
         [ProducesResponseType(500)]
-        public async Task<ActionResult<SearchDocumentsResponseDto>> SearchDocuments(
+        public async Task<ActionResult<SearchDocumentsResponseDto>> SearchAllDocuments(
+            [FromQuery] int page = 0,
+            [FromQuery] int rowsPerPage = 100,
+            CancellationToken cancellationToken = default)
+        {
+            // Validar parámetros básicos
+            if (page < 0)
+                return BadRequest(new { message = "El número de página no puede ser negativo" });
+
+            if (rowsPerPage < 1 || rowsPerPage > 500)
+                return BadRequest(new { message = "rowsPerPage debe estar entre 1 y 500" });
+
+            try
+            { 
+
+                var request = new SearchDocumentsRequestDto
+                {
+                    Page = page,
+                    RowsPerPage = rowsPerPage
+                };
+
+                var result = await _searchService.SearchAllAsync(request, cancellationToken);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Error de autenticación al buscar documentos");
+                return Unauthorized(new { message = "Credenciales API inválidas o expiradas" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al buscar documentos");
+                return StatusCode(500, new { message = "Error interno al buscar documentos" });
+            }
+        }
+
+        /// <summary>
+        /// Busca documentos aplicando filtros opcionales (tipo, nombre, paginación)
+        /// </summary>
+        /// <param name="documentTypeIds">Lista de IDs de tipos de documento (separados por comas) opcional</param>
+        /// <param name="query">Filtro por nombre (opcional)</param>
+        /// <param name="page">Número de página (por defecto 0)</param>
+        /// <param name="rowsPerPage">Filas por página (por defecto 100, máximo 500)</param>
+        /// <param name="cancellationToken">Token de cancelación</param>
+        /// <returns>Lista paginada de documentos</returns>
+        /// <response code="200">Búsqueda exitosa, devuelve documentos</response>
+        /// <response code="400">Parámetros inválidos</response>
+        /// <response code="401">No autenticado o credenciales incorrectas</response>
+        /// <response code="500">Error interno del servidor</response>
+        [HttpPost]
+        [ProducesResponseType(typeof(SearchDocumentsPOSTResponseDto), 200)]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(401)]
+        [ProducesResponseType(500)]
+        public async Task<ActionResult<SearchDocumentsPOSTResponseDto>> SearchDocuments(
             [FromQuery] string? documentTypeIds,  // nombre exacto
             [FromQuery] string? query,
             [FromQuery] int page = 0,
@@ -56,13 +109,18 @@ namespace ProDoctivityDS.Controllers
             try
             {
                 // Convertir documentTypeIds de string separado por comas a lista
-                string? typeIdsList = null;
+                List<string>? typeIdsList = null;
                 if (!string.IsNullOrWhiteSpace(documentTypeIds))
                 {
-                    typeIdsList = documentTypeIds;
+                    // Split by comma, trim each entry, remove empty entries
+                    typeIdsList = documentTypeIds
+                        .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => s.Trim())
+                        .Where(s => !string.IsNullOrEmpty(s))
+                        .ToList();
                 }
 
-                var request = new SearchDocumentsRequestDto
+                var request = new SearchDocumentsPOSTRequestDto
                 {
                     DocumentTypeId = typeIdsList,
                     Name = query,

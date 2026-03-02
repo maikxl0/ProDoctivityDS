@@ -17,4 +17,6 @@ namespace ProDoctivityDS.Application.Dtos.ProDoctivity
         [JsonPropertyName("rowsPerPage")]
         public int RowsPerPage { get; set; }
     }
+
+    
 }

@@ -24,11 +24,23 @@ namespace ProDoctivityDS.Application.Services
             {
                 try
                 {
-                    // Sanitizar nombre de archivo
-                    var safeFileName = SanitizeFileName(fileName);
-                    var uniqueFileName = MakeUniqueFileName(safeFileName);
+                    // 1. Sanitizar el nombre base
+                    var safeBaseName = SanitizeFileName(fileName);
 
-                    var folderPath = Path.Combine(_basePath, subFolder);
+                    // 2. Asegurar extensión .pdf
+                    if (!safeBaseName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                    {
+                        safeBaseName += ".pdf";
+                    }
+
+                    // 3. Generar nombre único (con timestamp si es necesario)
+                    var uniqueFileName = MakeUniqueFileName(safeBaseName);
+
+                    // 4. Sanitizar subcarpeta
+                    var safeSubFolder = SanitizeFolderName(subFolder);
+
+                    // 5. Construir ruta completa
+                    var folderPath = Path.Combine(_basePath, safeSubFolder);
                     EnsureDirectoryExists(folderPath);
 
                     var filePath = Path.Combine(folderPath, uniqueFileName);
@@ -43,6 +55,28 @@ namespace ProDoctivityDS.Application.Services
                     throw;
                 }
             }, cancellationToken);
+        }
+
+        private string SanitizeFileName(string name)
+        {
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var sanitized = new string(name.Where(c => !invalidChars.Contains(c)).ToArray()).Trim();
+            return string.IsNullOrEmpty(sanitized) ? "file" : sanitized;
+        }
+
+        private string SanitizeFolderName(string name)
+        {
+            var invalidChars = Path.GetInvalidPathChars().Concat(Path.GetInvalidFileNameChars()).Distinct().ToArray();
+            var sanitized = new string(name.Where(c => !invalidChars.Contains(c)).ToArray()).Trim();
+            return string.IsNullOrEmpty(sanitized) ? "default" : sanitized;
+        }
+
+        private string MakeUniqueFileName(string fileName)
+        {
+            var ext = Path.GetExtension(fileName);
+            var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+            var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+            return $"{nameWithoutExt}_{timestamp}{ext}";
         }
 
         /// <inheritdoc />
@@ -104,41 +138,5 @@ namespace ProDoctivityDS.Application.Services
                 Directory.CreateDirectory(path);
         }
 
-        private string SanitizeFileName(string fileName)
-        {
-            if (string.IsNullOrEmpty(fileName))
-                return "unnamed.pdf";
-
-            var invalidChars = Path.GetInvalidFileNameChars();
-            var sanitized = string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
-
-            // Si después de sanitizar queda vacío, usar un nombre por defecto
-            if (string.IsNullOrWhiteSpace(sanitized))
-                sanitized = "document.pdf";
-
-            return sanitized;
-        }
-
-        private string MakeUniqueFileName(string fileName)
-        {
-            var directory = Path.GetDirectoryName(fileName) ?? "";
-            var name = Path.GetFileNameWithoutExtension(fileName);
-            var ext = Path.GetExtension(fileName);
-
-            if (string.IsNullOrEmpty(directory))
-                directory = _basePath;
-
-            var fullPath = Path.Combine(directory, fileName);
-            var counter = 1;
-
-            while (File.Exists(fullPath))
-            {
-                var newName = $"{name}_{counter}{ext}";
-                fullPath = Path.Combine(directory, newName);
-                counter++;
-            }
-
-            return Path.GetFileName(fullPath);
-        }
     }
 }

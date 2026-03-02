@@ -1,5 +1,4 @@
 ﻿using ProDoctivityDS.Application.Dtos.ProDoctivity;
-using ProDoctivityDS.Domain.Entities.ValueObjects;
 
 namespace ProDoctivityDS.Application.Dtos.ValueObjects
 {

@@ -1,0 +1,65 @@
+<div class="processing-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>Procesamiento de Documentos</mat-card-title>
+      <mat-card-subtitle>{{ selectedCount }} documento(s) seleccionado(s)</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      @if (!isProcessing) {
+        <div class="start-area">
+          <button 
+            mat-raised-button 
+            color="primary" 
+            (click)="startProcessing()" 
+            [disabled]="selectedCount === 0">
+            <mat-icon>play_arrow</mat-icon> Procesar Seleccionados
+          </button>
+        </div>
+      }
+
+      @if (isProcessing && progress) {
+        <div class="progress-area">
+          <div class="progress-header">
+            <span class="current-doc">{{ progress.currentDocumentName }}</span>
+            <span class="status">{{ progress.status }}</span>
+          </div>
+
+          <mat-progress-bar 
+            mode="determinate" 
+            [value]="progress.percentComplete">
+          </mat-progress-bar>
+
+          <div class="counters">
+            <div class="counter" [class.active]="progress.processed > 0">
+              <span class="label">Procesados:</span>
+              <span class="value">{{ progress.processed }}/{{ progress.total }}</span>
+            </div>
+            <div class="counter" [class.active]="progress.updated > 0">
+              <span class="label">Actualizados:</span>
+              <span class="value">{{ progress.updated }}</span>
+            </div>
+            <div class="counter" [class.active]="progress.pagesRemoved > 0">
+              <span class="label">Páginas removidas:</span>
+              <span class="value">{{ progress.pagesRemoved }}</span>
+            </div>
+            <div class="counter" [class.active]="progress.errors > 0">
+              <span class="label">Errores:</span>
+              <span class="value">{{ progress.errors }}</span>
+            </div>
+            <div class="counter" [class.active]="progress.skipped > 0">
+              <span class="label">Saltados:</span>
+              <span class="value">{{ progress.skipped }}</span>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button mat-raised-button color="warn" (click)="cancelProcessing()">
+              <mat-icon>stop</mat-icon> Detener
+            </button>
+          </div>
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>
