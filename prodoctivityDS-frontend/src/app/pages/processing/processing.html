@@ -18,44 +18,58 @@
         </div>
       }
 
-      @if (isProcessing && progress) {
+      @if (isProcessing) {
         <div class="progress-area">
           <div class="progress-header">
-            <span class="current-doc">{{ progress.currentDocumentName }}</span>
-            <span class="status">{{ progress.status }}</span>
+            <span class="current-doc">{{ progress?.currentDocumentName || 'Iniciando...' }}</span>
+            <span class="status">{{ progress?.status || 'Preparando...' }}</span>
           </div>
 
           <mat-progress-bar 
             mode="determinate" 
-            [value]="progress.percentComplete">
+            [value]="percentComplete">
           </mat-progress-bar>
 
-          <div class="counters">
-            <div class="counter" [class.active]="progress.processed > 0">
-              <span class="label">Procesados:</span>
-              <span class="value">{{ progress.processed }}/{{ progress.total }}</span>
-            </div>
-            <div class="counter" [class.active]="progress.updated > 0">
-              <span class="label">Actualizados:</span>
-              <span class="value">{{ progress.updated }}</span>
-            </div>
-            <div class="counter" [class.active]="progress.pagesRemoved > 0">
-              <span class="label">Páginas removidas:</span>
-              <span class="value">{{ progress.pagesRemoved }}</span>
-            </div>
-            <div class="counter" [class.active]="progress.errors > 0">
-              <span class="label">Errores:</span>
-              <span class="value">{{ progress.errors }}</span>
-            </div>
-            <div class="counter" [class.active]="progress.skipped > 0">
-              <span class="label">Saltados:</span>
-              <span class="value">{{ progress.skipped }}</span>
-            </div>
+          <!-- Cuadros de contadores -->
+          <div class="counters-grid">
+            <mat-card class="counter-card processed">
+              <mat-icon>check_circle</mat-icon>
+              <div class="counter-value">{{ progress?.processed || 0 }}</div>
+              <div class="counter-label">Procesados</div>
+              <div class="counter-total">/{{ progress?.total || selectedCount }}</div>
+            </mat-card>
+
+            <mat-card class="counter-card updated">
+              <mat-icon>update</mat-icon>
+              <div class="counter-value">{{ progress?.updated || 0 }}</div>
+              <div class="counter-label">Actualizados</div>
+            </mat-card>
+
+            <mat-card class="counter-card pages-removed">
+              <mat-icon>delete</mat-icon>
+              <div class="counter-value">{{ progress?.pagesRemoved || 0 }}</div>
+              <div class="counter-label">Páginas removidas</div>
+            </mat-card>
+
+            <mat-card class="counter-card errors">
+              <mat-icon>error</mat-icon>
+              <div class="counter-value">{{ progress?.errors || 0 }}</div>
+              <div class="counter-label">Errores</div>
+            </mat-card>
+
+            <mat-card class="counter-card skipped">
+              <mat-icon>skip_next</mat-icon>
+              <div class="counter-value">{{ progress?.skipped || 0 }}</div>
+              <div class="counter-label">Saltados</div>
+            </mat-card>
           </div>
 
           <div class="actions">
-            <button mat-raised-button color="warn" (click)="cancelProcessing()">
+            <button mat-raised-button color="warn" (click)="cancelProcessing()" [disabled]="progress?.status === 'Completado'">
               <mat-icon>stop</mat-icon> Detener
+            </button>
+            <button mat-raised-button color="primary" (click)="clearProgress()" *ngIf="progress?.status === 'Completado'">
+              <mat-icon>done</mat-icon> Limpiar y volver
             </button>
           </div>
         </div>

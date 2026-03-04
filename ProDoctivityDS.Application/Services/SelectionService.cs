@@ -48,6 +48,8 @@ namespace ProDoctivityDS.Application.Services
                 throw new ArgumentException("SessionId no puede ser nulo o vacío");
 
             var selection = GetOrCreateSelectionSet(sessionId);
+
+
             foreach (var docId in documentIds.Where(id => !string.IsNullOrEmpty(id)))
             {
                 selection.Add(docId);
@@ -166,11 +168,10 @@ namespace ProDoctivityDS.Application.Services
         }
 
         /// <inheritdoc />
-        public Task<string> GetSelectedTypeIdsTextAsync(string sessionId, IDictionary<string, string> documentTypeMap)
+        public async Task<string> GetSelectedTypeIdsTextAsync(string sessionId, IDictionary<string, string> documentTypeMap)
         {
-            var typeIds = GetSelectedTypeIdsAsync(sessionId, documentTypeMap).Result; // .Result porque es async pero podemos hacer await. Para simplificar usamos .Result en este método síncrono.
-            var text = string.Join(Environment.NewLine, typeIds);
-            return Task.FromResult(text);
+            var typeIds = await GetSelectedTypeIdsAsync(sessionId, documentTypeMap);
+            return string.Join(Environment.NewLine, typeIds);
         }
 
         /// <inheritdoc />
@@ -184,5 +185,7 @@ namespace ProDoctivityDS.Application.Services
             _logger.LogDebug("Selección eliminada para sesión {SessionId}", sessionId);
             return Task.CompletedTask;
         }
+
+
     }
 }

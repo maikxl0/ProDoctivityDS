@@ -1,54 +1,49 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { tap, map } from 'rxjs/operators';
 
 @Injectable({ providedIn: 'root' })
 export class SelectionService {
   private http = inject(HttpClient);
   private baseUrl = '/api/selection';
-  private sessionIdKey = 'x-session-id';
+  private sessionIdKey = 'app-session-id';
 
-  private getSessionId(): string | null {
-    return localStorage.getItem(this.sessionIdKey);
-  }
-
-  private setSessionId(id: string): void {
-    localStorage.setItem(this.sessionIdKey, id);
-  }
-
-  private request<T>(method: string, url: string, body?: any): Observable<T> {
-    let headers = new HttpHeaders();
-    const sessionId = this.getSessionId();
-    if (sessionId) {
-      headers = headers.set('X-Session-Id', sessionId);
+  private getSessionId(): string {
+    let sessionId = localStorage.getItem(this.sessionIdKey);
+    if (!sessionId) {
+      // Generar un UUID v4 (compatible con navegadores modernos)
+      sessionId = crypto.randomUUID ? crypto.randomUUID() : this.generateUUID();
+      localStorage.setItem(this.sessionIdKey, sessionId);
     }
+    return sessionId;
+  }
 
-    // Realizar la petición y observar la respuesta completa para leer headers
-    return this.http.request<T>(method, url, { body, headers, observe: 'response' }).pipe(
-      tap(response => {
-        const newSessionId = response.headers.get('X-Session-Id');
-        if (newSessionId) {
-          this.setSessionId(newSessionId);
-        }
-      }),
-      map(response => response.body as T)
-    );
+  // Fallback para navegadores sin crypto.randomUUID
+  private generateUUID(): string {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  private createHeaders(): HttpHeaders {
+    return new HttpHeaders().set('X-Session-Id', this.getSessionId());
   }
 
   selectDocuments(documentIds: string[]): Observable<any> {
-    return this.request('POST', `${this.baseUrl}/select`, documentIds);
+    return this.http.post(`${this.baseUrl}/select`, documentIds, { headers: this.createHeaders() });
   }
 
-  deselectDocuments(documentIds: string[]): Observable<any> {
-    return this.request('POST', `${this.baseUrl}/deselect`, documentIds);
-  }
+  clearAllSelection(): Observable<any> {
+  return this.http.delete(`${this.baseUrl}/clear`, { headers: this.createHeaders() });
+}
 
   getSelectedDocuments(): Observable<string[]> {
-    return this.request('GET', `${this.baseUrl}/selected`);
+    return this.http.get<string[]>(`${this.baseUrl}/selected`, { headers: this.createHeaders() });
   }
 
   getSelectedCount(): Observable<number> {
-    return this.request('GET', `${this.baseUrl}/selected-count`);
+    return this.http.get<number>(`${this.baseUrl}/selected-count`, { headers: this.createHeaders() });
   }
 }

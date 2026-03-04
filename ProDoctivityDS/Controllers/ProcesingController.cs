@@ -15,6 +15,7 @@ namespace ProDoctivityDS.Controllers
         private readonly IProcessingProgressStore _progressStore;
         private readonly ILogger<ProcessingController> _logger;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly ISelectionService _selectionService;
 
         // Almacenamiento en memoria de los cancellation tokens por sesión
         private static readonly Dictionary<string, CancellationTokenSource> _activeProcesses = new();
@@ -22,24 +23,27 @@ namespace ProDoctivityDS.Controllers
         public ProcessingController(
             IProcessingProgressStore progressStore,
             ILogger<ProcessingController> logger,
-            IServiceScopeFactory scopeFactory)
+            IServiceScopeFactory scopeFactory,
+            ISelectionService selectionService)
         {
             _progressStore = progressStore;
             _logger = logger;
             _scopeFactory = scopeFactory;
+            _selectionService = selectionService;
         }
 
-        /// <summary>
-        /// Obtiene el identificador de sesión del header X-Session-Id.
-        /// Si no existe, genera uno nuevo y lo agrega al header de respuesta.
-        /// </summary>
-        private string GetSessionId()
+        private string GetOrCreateSessionId()
         {
+            // Forzar la creación de la sesión si no existe
             if (Request.Headers.TryGetValue("X-Session-Id", out var sessionId))
+            {
+                _logger.LogInformation("Header X-Session-Id recibido: {SessionId}", sessionId);
                 return sessionId.ToString();
+            }
 
             var newSessionId = Guid.NewGuid().ToString();
             Response.Headers.Add("X-Session-Id", newSessionId);
+            _logger.LogInformation("Nuevo X-Session-Id generado: {SessionId}", newSessionId);
             return newSessionId;
         }
 
@@ -56,17 +60,20 @@ namespace ProDoctivityDS.Controllers
         [ProducesResponseType(typeof(object), 202)]
         [ProducesResponseType(400)]
         [ProducesResponseType(500)]
-        public IActionResult StartProcessing([FromBody] ProcessRequestDto request)
+        public async Task<IActionResult> StartProcessing([FromBody] ProcessRequestDto request)
         {
+            var SessionId = GetOrCreateSessionId();
             // Validar entrada
-            if (request?.DocumentIds == null || request.DocumentIds.Count == 0)
-                return BadRequest(new { message = "Debe proporcionar al menos un ID de documento" });
+            var selectedIds = (await _selectionService.GetSelectedDocumentsAsync(SessionId)).ToList();
+            if (selectedIds.Count == 0)
+                return BadRequest(new { message = "No hay documentos seleccionados para procesar" });
 
-            var sessionId = GetSessionId();
+            if (request.DocumentIds.FirstOrDefault() == "string" || request.DocumentIds == null)
+                request.DocumentIds = selectedIds; // Si viene vacio, tomar los seleccionados
 
-            // Crear cancellation token para poder cancelar
+            // Crear cancellation token
             var cts = new CancellationTokenSource();
-            _activeProcesses[sessionId] = cts;
+            _activeProcesses[SessionId] = cts;
 
             // Ejecutar en segundo plano (fire-and-forget)
             _ = Task.Run(async () =>
@@ -80,17 +87,18 @@ namespace ProDoctivityDS.Controllers
                     try
                     {
                         _logger.LogInformation("Iniciando procesamiento para sesión {SessionId} con {Count} documentos",
-                            sessionId, request.DocumentIds.Count);
+                            SessionId, request.DocumentIds.Count);
 
-                        await processingService.ProcessDocumentsAsync(request, sessionId, cts.Token);
+                        
+                        await processingService.ProcessDocumentsAsync(request, SessionId, cts.Token);
                     }
                     catch (OperationCanceledException)
                     {
-                        _logger.LogInformation("Procesamiento cancelado para sesión {SessionId}", sessionId);
+                        _logger.LogInformation("Procesamiento cancelado para sesión {SessionId}", SessionId);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error en procesamiento para sesión {SessionId}", sessionId);
+                        _logger.LogError(ex, "Error en procesamiento para sesión {SessionId}", SessionId);
 
                         var errorProgress = new ProcessProgressDto
                         {
@@ -102,16 +110,16 @@ namespace ProDoctivityDS.Controllers
                             Skipped = 0,
                             Status = $"Error crítico: {ex.Message}"
                         };
-                        _progressStore.UpdateProgress(sessionId, errorProgress);
+                        _progressStore.UpdateProgress(SessionId, errorProgress);
                     }
                     finally
                     {
-                        _activeProcesses.Remove(sessionId);
+                        _activeProcesses.Remove(SessionId);
                     }
                 } // Al salir del using, el ámbito se destruye y el DbContext se libera
             }, CancellationToken.None);
 
-            return Accepted(new { sessionId, message = "Procesamiento iniciado" });
+            return Accepted(new { SessionId, message = "Procesamiento iniciado" });
         }
 
 
@@ -126,8 +134,8 @@ namespace ProDoctivityDS.Controllers
         [ProducesResponseType(404)]
         public ActionResult<ProcessProgressDto> GetProgress()
         {
-            var sessionId = GetSessionId();
-            var progress = _progressStore.GetProgress(sessionId);
+            var SessionId = GetOrCreateSessionId();
+            var progress = _progressStore.GetProgress(SessionId);
 
             if (progress == null)
                 return NotFound(new { message = "No hay proceso activo para esta sesión" });
@@ -146,19 +154,18 @@ namespace ProDoctivityDS.Controllers
         [ProducesResponseType(404)]
         public IActionResult CancelProcessing()
         {
-            var sessionId = GetSessionId();
-
-            if (_activeProcesses.TryGetValue(sessionId, out var cts))
+            var SessionId = GetOrCreateSessionId();
+            if (_activeProcesses.TryGetValue(SessionId, out var cts))
             {
                 cts.Cancel();
-                _logger.LogInformation("Cancelación solicitada para sesión {SessionId}", sessionId);
+                _logger.LogInformation("Cancelación solicitada para sesión {SessionId}", SessionId);
 
                 // Actualizar progreso para reflejar cancelación
-                var progress = _progressStore.GetProgress(sessionId);
+                var progress = _progressStore.GetProgress(SessionId);
                 if (progress != null)
                 {
                     progress.Status = "Cancelado por usuario";
-                    _progressStore.UpdateProgress(sessionId, progress);
+                    _progressStore.UpdateProgress(SessionId, progress);
                 }
 
                 return Ok(new { message = "Cancelación solicitada" });
@@ -176,9 +183,9 @@ namespace ProDoctivityDS.Controllers
         [ProducesResponseType(200)]
         public IActionResult ClearProgress()
         {
-            var sessionId = GetSessionId();
-            _progressStore.RemoveProgress(sessionId);
-            _logger.LogDebug("Progreso eliminado para sesión {SessionId}", sessionId);
+            var SessionId = GetOrCreateSessionId();
+            _progressStore.RemoveProgress(SessionId);
+            _logger.LogDebug("Progreso eliminado para sesión {SessionId}", SessionId);
             return Ok(new { message = "Progreso eliminado" });
         }
     }

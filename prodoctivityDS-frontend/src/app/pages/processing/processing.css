@@ -1,75 +1,70 @@
-.processing-container {
-  padding: 20px;
-  max-width: 800px;
-  margin: 0 auto;
+.counters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
 }
 
-.start-area {
+.counter-card {
   display: flex;
-  justify-content: center;
-  padding: 40px 0;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  text-align: center;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.progress-area {
-  margin-top: 20px;
-  padding: 20px;
-  background: #f5f5f5;
-  border-radius: 4px;
+.counter-card mat-icon {
+  font-size: 32px;
+  height: 32px;
+  width: 32px;
+  margin-bottom: 8px;
 }
+
+.counter-value {
+  font-size: 24px;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.counter-label {
+  font-size: 14px;
+  color: #666;
+}
+
+.counter-total {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.processed { background-color: #e3f2fd; color: #1976d2; }
+.updated { background-color: #e8f5e9; color: #2e7d32; }
+.pages-removed { background-color: #fff3e0; color: #f57c00; }
+.errors { background-color: #ffebee; color: #c62828; }
+.skipped { background-color: #f5f5f5; color: #616161; }
 
 .progress-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 16px;
-  font-weight: 500;
 }
 
 .current-doc {
+  font-weight: 500;
   color: #3f51b5;
 }
 
 .status {
+  font-style: italic;
   color: #666;
-}
-
-.counters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin: 20px 0;
-}
-
-.counter {
-  flex: 1 1 150px;
-  padding: 12px;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  text-align: center;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-}
-
-.counter.active {
-  opacity: 1;
-  background: #e8f5e9;
-}
-
-.counter .label {
-  display: block;
-  font-size: 0.9em;
-  color: #666;
-  margin-bottom: 4px;
-}
-
-.counter .value {
-  display: block;
-  font-size: 1.5em;
-  font-weight: 500;
 }
 
 .actions {
   display: flex;
+  gap: 12px;
   justify-content: center;
-  margin-top: 20px;
+  margin-top: 24px;
 }

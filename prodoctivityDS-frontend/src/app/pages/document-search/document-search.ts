@@ -1,12 +1,14 @@
 import { Component, signal, computed, inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 
 // Angular Material
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { MatTableModule } from '@angular/material/table';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -15,10 +17,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 
 // Servicios y modelos
-import { DocumentService } from '../../data/Services/document.service';
-import { DocumentTypeService } from '../../data/Services/document-type.service'; 
+import { DocumentService } from '../../data/services/document.service';
+import { DocumentTypeService } from '../../data/services/document-type.service'; 
 import { Document } from '../../core/models/document.model';
 import { DocumentType } from '../../core/models/document-type.model';
+import { SelectionService } from '../../data/services/selection.service';
 
 @Component({
   selector: 'app-document-search',
@@ -44,6 +47,9 @@ export class DocumentSearchComponent implements OnInit {
   private fb = inject(FormBuilder);
   private documentService = inject(DocumentService);
   private documentTypeService = inject(DocumentTypeService);
+  private selectionService = inject(SelectionService);
+  private router = inject(Router);
+  private snackBar = inject(MatSnackBar);
 
   // Estado
   documents = signal<Document[]>([]);
@@ -86,6 +92,14 @@ export class DocumentSearchComponent implements OnInit {
   ngOnInit(): void {
     this.loadDocumentTypes();
     this.onSearch();
+
+    // Cargar selección guardada
+  this.selectionService.getSelectedDocuments().subscribe({
+    next: (selectedIds) => {
+      this.selectedDocuments.set(new Set(selectedIds));
+    },
+    error: (err) => console.error('Error al cargar selección', err)
+  });
   }
 
   loadDocumentTypes(): void {
@@ -142,30 +156,89 @@ export class DocumentSearchComponent implements OnInit {
       }
       return newSet;
     });
+    // Notificar al backend
+  const isSelected = this.selectedDocuments().has(docId);
+  if (isSelected) {
+    this.selectionService.selectDocuments([docId]).subscribe({
+      error: (err) => {
+        console.error('Error al seleccionar', err);
+        // Revertir cambio local si falla
+        this.selectedDocuments.update(set => {
+          const revert = new Set(set);
+          revert.delete(docId);
+          return revert;
+        });
+      }
+    });
+  } else {
+    this.selectionService.clearAllSelection().subscribe({
+      error: (err) => {
+        console.error('Error al deseleccionar', err);
+        this.selectedDocuments.update(set => {
+          const revert = new Set(set);
+          revert.add(docId);
+          return revert;
+        });
+      }
+    });
   }
+}
 
   isSelected(docId: string): boolean {
     return this.selectedDocuments().has(docId);
   }
 
   selectAll(): void {
-    const allIds = this.documents().map(d => d.documentId);
-    this.selectedDocuments.update(set => new Set([...set, ...allIds]));
+  const allIds = this.documents().map(d => d.documentId);
+  // Actualizar local
+  this.selectedDocuments.update(set => new Set([...set, ...allIds]));
+  // Notificar al backend
+  this.selectionService.selectDocuments(allIds).subscribe({
+    error: (err) => {
+      console.error('Error al seleccionar todos', err);
+      // Revertir: eliminar los que se intentaron agregar
+      this.selectedDocuments.update(set => {
+        const revert = new Set(set);
+        allIds.forEach(id => revert.delete(id));
+        return revert;
+      });
+    }
+  });
+}
+
+processSelected(): void {
+  if (this.selectedDocuments().size === 0) {
+    alert('Selecciona al menos un documento');
+    return;
+  }
+  // Navegar a la ruta de progreso
+  this.router.navigate(['/processing']);
+}
+
+clearAllSelection(): void {
+  const selectedCount = this.selectedDocuments().size;
+  if (selectedCount === 0) {
+    this.snackBar.open('No hay documentos seleccionados', 'Cerrar', { duration: 2000 });
+    return;
   }
 
-  deselectAll(): void {
-    const currentPageIds = new Set(this.documents().map(d => d.documentId));
-    this.selectedDocuments.update(set => {
-      const newSet = new Set(set);
-      currentPageIds.forEach(id => newSet.delete(id));
-      return newSet;
-    });
-  }
+
+  this.selectionService.clearAllSelection().subscribe({
+    next: () => {
+      this.selectedDocuments.set(new Set()); // Limpia el estado local
+      this.snackBar.open('Selección eliminada', 'OK', { duration: 2000 });
+    },
+    error: (err) => {
+      console.error('Error al limpiar selección', err);
+      this.snackBar.open('Error al limpiar selección', 'Cerrar', { duration: 3000 });
+    }
+  });
+}
 
   // Método para el checkbox de cabecera
   toggleAll(): void {
     if (this.allSelected()) {
-      this.deselectAll();
+      this.clearAllSelection();
     } else {
       this.selectAll();
     }

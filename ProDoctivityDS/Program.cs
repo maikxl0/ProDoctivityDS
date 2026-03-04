@@ -13,8 +13,8 @@ builder.Services.AddPersistenceDependencies(builder.Configuration);
 builder.Services.AddApplicationServices();
 builder.Services.AddSharedServices();
 
-
 builder.Services.AddControllers();
+builder.Services.AddHttpContextAccessor();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 // Configurar Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -46,10 +46,11 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddDistributedMemoryCache(); // Almacena sesiones en memoria (para desarrollo)
 builder.Services.AddSession(options =>
 {
-    options.IdleTimeout = TimeSpan.FromMinutes(20); // Tiempo de expiración
-    options.Cookie.HttpOnly = true; // Seguridad: la cookie no es accesible desde JavaScript
-    options.Cookie.IsEssential = true; // Necesario para GDPR
-    options.Cookie.Name = ".Prodoctivity.Session"; // Nombre personalizado (opcional)
+    options.IdleTimeout = TimeSpan.FromMinutes(20);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.Cookie.SameSite = SameSiteMode.None;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.None;
 });
 
 var keyRingPath = Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys");
@@ -72,13 +73,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
+app.UseRouting();
 app.UseSession();
-app.UseCors(policy => policy
-    .WithOrigins("http://localhost:4200")
-    .AllowAnyMethod()
-    .AllowAnyHeader()
-    .AllowCredentials());
 
 app.UseAuthorization();
 app.MapControllers();

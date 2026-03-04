@@ -7,8 +7,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { Subscription, interval, switchMap, tap, catchError, of } from 'rxjs';
 import { ProcessRequest } from '../../core/models/process-request.model';
-import { ProcessingService } from '../../data/Services/processing.service';
-import { SelectionService } from '../../data/Services/selection.service';
+import { ProcessingService } from '../../data/services/processing.service';
+import { SelectionService } from '../../data/services/selection.service';
 import { ProcessProgress } from '../../core/models/process-progress.model';
 
 @Component({
@@ -41,6 +41,24 @@ export class ProcessingComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadSelectedDocuments();
+    this.checkExistingProgress();
+  }
+
+  private checkExistingProgress(): void {
+    this.processingService.getProgress().subscribe({
+      next: (progress) => {
+        if (progress) {
+          this.progress = progress;
+          this.isProcessing = true;
+          this.startPolling();
+        }
+      },
+      error: (err) => {
+        if (err.status !== 404) {
+          console.error('Error al verificar progreso', err);
+        }
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -66,6 +84,7 @@ export class ProcessingComponent implements OnInit, OnDestroy {
     };
 
     this.isProcessing = true;
+    this.progress = null; // Reiniciamos el progreso anterior
     this.processingService.startProcessing(request).subscribe({
       next: (response) => {
         this.sessionId = response.sessionId;
@@ -84,19 +103,23 @@ export class ProcessingComponent implements OnInit, OnDestroy {
     this.pollingSubscription = interval(2000).pipe(
       switchMap(() => this.processingService.getProgress()),
       tap(progress => {
-        this.progress = progress;
-        if (progress.status === 'Completado' || progress.processed >= progress.total) {
-          this.stopPolling();
-          this.isProcessing = false;
-          this.snackBar.open('Procesamiento completado', 'OK', { duration: 3000 });
+        if (progress) {
+          this.progress = progress;
+          if (progress.status === 'Completado' || progress.processed >= progress.total) {
+            this.stopPolling();
+            this.isProcessing = false;
+            this.snackBar.open('Procesamiento completado', 'OK', { duration: 3000 });
+          }
         }
       }),
       catchError(err => {
-        console.error('Error al obtener progreso', err);
         if (err.status === 404) {
-          this.stopPolling();
-          this.isProcessing = false;
+          // Progreso aún no disponible, seguimos esperando
+          return of(null);
         }
+        console.error('Error al obtener progreso', err);
+        this.stopPolling();
+        this.isProcessing = false;
         return of(null);
       })
     ).subscribe();
@@ -134,5 +157,12 @@ export class ProcessingComponent implements OnInit, OnDestroy {
       },
       error: (err) => console.error(err)
     });
+  }
+
+  // Getter para calcular el porcentaje si el backend no lo envía
+  get percentComplete(): number {
+    if (!this.progress || this.progress.total === 0) return 0;
+    const completed = this.progress.processed + this.progress.errors + this.progress.skipped;
+    return (completed / this.progress.total) * 100;
   }
 }
