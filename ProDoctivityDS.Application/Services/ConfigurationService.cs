@@ -5,6 +5,7 @@ using ProDoctivityDS.Application.Dtos.ValueObjects;
 using ProDoctivityDS.Application.Interfaces;
 using ProDoctivityDS.Domain.Entities;
 using ProDoctivityDS.Domain.Interfaces;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace ProDoctivityDS.Application.Services
 {
@@ -29,6 +30,7 @@ namespace ProDoctivityDS.Application.Services
             _mapper = mapper;
             _logger = logger;
         }
+        
 
         /// <inheritdoc />
         public async Task<ConfigurationDto> GetConfigurationDtoAsync(CancellationToken cancellationToken = default)
@@ -38,11 +40,11 @@ namespace ProDoctivityDS.Application.Services
             var dto = _mapper.Map<ConfigurationDto>(config);
 
             // Ocultar credenciales sensibles
-            dto.ApiKey = "●●●●●●●●";
-            dto.ApiSecret = "●●●●●●●●";
-            dto.BearerToken = "●●●●●●●●";
-            dto.CookieSessionId = "●●●●●●●●";
-
+            dto.ApiKey = config.ApiKey;
+            dto.ApiSecret = config.ApiSecret;
+            dto.BearerToken = config.BearerToken;
+            dto.CookieSessionId = config.CookieSessionId;
+            dto.BaseUrl = config.ApiBaseUrl;
             return dto;
         }
 

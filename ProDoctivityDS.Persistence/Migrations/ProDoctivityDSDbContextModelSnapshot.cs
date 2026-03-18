@@ -140,11 +140,19 @@ namespace ProDoctivityDS.Persistence.Migrations
                     b.Property<DateTime>("LastModified")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Password")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
                     b.Property<string>("ProcessingOptionsJson")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
                         .HasDefaultValue("{}");
+
+                    b.Property<string>("Username")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 

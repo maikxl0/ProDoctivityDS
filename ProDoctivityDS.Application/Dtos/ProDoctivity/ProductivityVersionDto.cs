@@ -14,9 +14,12 @@ namespace ProDoctivityDS.Application.Dtos.ProDoctivity
         [JsonPropertyName("version")]
         public int Version { get; set; }
 
+        // Otras propiedades que puedas necesitar (opcional)
+        [JsonPropertyName("documentId")]
+        public string DocumentId { get; set; }
+
         [JsonPropertyName("createdAt")]
         public long CreatedAt { get; set; }
-
         [JsonPropertyName("binaries")]
         public List<string>? Binaries { get; set; } // Data URLs
     }

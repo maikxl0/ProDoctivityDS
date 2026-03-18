@@ -3,7 +3,9 @@
   max-width: 1200px;
   margin: 0 auto;
 }
-
+.top-paginator {
+  margin-bottom: 16px;
+}
 .filter-form {
   display: flex;
   flex-wrap: wrap;

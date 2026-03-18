@@ -18,6 +18,7 @@ namespace ProDoctivityDS.Persistence.Repositories
             _mapper = mapper;
             _encryption = encryptionService; 
         }
+        
 
         public async Task<StoredConfiguration> GetActiveConfigurationAsync()
         {

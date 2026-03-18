@@ -2,24 +2,23 @@
 
 namespace ProDoctivityDS.Application.Dtos.ProDoctivity
 {
-
-    public class DocumentVersionDetailResponse
-    {
-        [JsonPropertyName("document")]
-        public DocumentVersionDetailDto Document { get; set; } = new();
-    }
-
     public class DocumentVersionDetailDto
     {
-        [JsonPropertyName("binaries")]
-        public List<string> Binaries { get; set; } = new();
+        [JsonPropertyName("data")]
+        public object Data { get; set; } 
 
-        // Opcional: otras propiedades que necesites (por ejemplo, documentId, name, etc.)
+        [JsonPropertyName("filesName")]
+        public List<string> FilesName { get; set; }
+
+        [JsonPropertyName("binaries")]
+        public List<string> Binaries { get; set; }
+
+        // Otras propiedades que puedas necesitar (opcional)
         [JsonPropertyName("documentId")]
-        public string DocumentId { get; set; } = string.Empty;
+        public string DocumentId { get; set; }
 
         [JsonPropertyName("documentVersionId")]
-        public string DocumentVersionId { get; set; } = string.Empty;
+        public string DocumentVersionId { get; set; }
     }
 
 

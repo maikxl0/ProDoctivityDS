@@ -1,9 +1,19 @@
 ﻿using ProDoctivityDS.Application.Dtos.ProDoctivity;
+using ProDoctivityDS.Application.Dtos.Response;
 
 namespace ProDoctivityDS.Application.Interfaces
 {
     public interface IProductivityApiClient
     {
+        Task<string> LoginAsync(
+            string baseUrl,
+            string username,
+            string password,
+            string? apiKey = null,
+            string? apiSecret = null,
+            string? cookie = null,
+            CancellationToken cancellationToken = default);
+
         /// <summary>
         /// Busca documentos aplicando filtros (paginación, tipo, nombre).
         /// </summary>
@@ -67,6 +77,16 @@ namespace ProDoctivityDS.Application.Interfaces
             byte[] pdfContent,
             string documentTypeId,
             string? parentVersionId = null,
+            object? data = null,
+            List<string>? filesName = null,
+            CancellationToken cancellationToken = default);
+        Task<bool> DeleteDocumentAsync(
+            string baseUrl,
+            string bearerToken,
+            string documentId,
+            string? apiKey = null,
+            string? apiSecret = null,
+            string? cookie = null,
             CancellationToken cancellationToken = default);
 
         Task<List<DocumentTypeDto>> GetDocumentTypesAsync(
@@ -75,6 +95,12 @@ namespace ProDoctivityDS.Application.Interfaces
             string? apiKey = null,
             string? apiSecret = null,
             string? cookie = null,
+            CancellationToken cancellationToken = default);
+        Task<DocumentVersionDetailResponse> GetDocumentVersionDetailAsync(
+            string baseUrl,
+            string bearerToken,
+            string documentId,
+            string versionId,
             CancellationToken cancellationToken = default);
     }
 }

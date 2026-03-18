@@ -16,6 +16,7 @@ namespace ProDoctivityDS.Controllers
         private readonly ILogger<ProcessingController> _logger;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ISelectionService _selectionService;
+        private readonly IDocumentDeletionService _deletionService;
 
         // Almacenamiento en memoria de los cancellation tokens por sesión
         private static readonly Dictionary<string, CancellationTokenSource> _activeProcesses = new();
@@ -24,17 +25,18 @@ namespace ProDoctivityDS.Controllers
             IProcessingProgressStore progressStore,
             ILogger<ProcessingController> logger,
             IServiceScopeFactory scopeFactory,
-            ISelectionService selectionService)
+            ISelectionService selectionService,
+            IDocumentDeletionService deletionService)
         {
             _progressStore = progressStore;
             _logger = logger;
             _scopeFactory = scopeFactory;
             _selectionService = selectionService;
+            _deletionService = deletionService;
         }
 
         private string GetOrCreateSessionId()
         {
-            // Forzar la creación de la sesión si no existe
             if (Request.Headers.TryGetValue("X-Session-Id", out var sessionId))
             {
                 _logger.LogInformation("Header X-Session-Id recibido: {SessionId}", sessionId);
@@ -62,64 +64,100 @@ namespace ProDoctivityDS.Controllers
         [ProducesResponseType(500)]
         public async Task<IActionResult> StartProcessing([FromBody] ProcessRequestDto request)
         {
-            var SessionId = GetOrCreateSessionId();
-            // Validar entrada
-            var selectedIds = (await _selectionService.GetSelectedDocumentsAsync(SessionId)).ToList();
-            if (selectedIds.Count == 0)
-                return BadRequest(new { message = "No hay documentos seleccionados para procesar" });
+            var sessionId = GetOrCreateSessionId();
+            _logger.LogInformation(">>> INICIO StartProcessing para sessionId={SessionId}", sessionId);
 
-            if (request.DocumentIds.FirstOrDefault() == "string" || request.DocumentIds == null)
-                request.DocumentIds = selectedIds; // Si viene vacio, tomar los seleccionados
+            // Validar si ya hay un proceso activo
+            if (_activeProcesses.ContainsKey(sessionId))
+            {
+                _logger.LogWarning(">>> Proceso ya activo para {SessionId}, rechazando", sessionId);
+                return Conflict(new { message = "Ya hay un proceso en curso" });
+            }
+
+            // Obtener documentos seleccionados
+            var selectedIds = (await _selectionService.GetSelectedDocumentsAsync(sessionId)).ToList();
+            _logger.LogInformation(">>> Documentos seleccionados: {Count} para sesión {SessionId}", selectedIds.Count, sessionId);
+            if (selectedIds.Count == 0)
+            {
+                _logger.LogWarning(">>> No hay documentos seleccionados para sesión {SessionId}", sessionId);
+                return BadRequest(new { message = "No hay documentos seleccionados" });
+            }
+
+            // Asignar IDs a procesar
+            if (request.DocumentIds == null || !request.DocumentIds.Any())
+            {
+                request.DocumentIds = selectedIds;
+                _logger.LogInformation(">>> Usando documentos seleccionados: {Ids}", string.Join(",", selectedIds));
+            }
+            else
+            {
+                request.DocumentIds = request.DocumentIds.Intersect(selectedIds).ToList();
+                _logger.LogInformation(">>> Usando documentos enviados (filtrados): {Ids}", string.Join(",", request.DocumentIds));
+            }
+
+            if (!request.DocumentIds.Any())
+            {
+                _logger.LogWarning(">>> Lista de documentos vacía después de filtrar");
+                return BadRequest(new { message = "No hay documentos válidos para procesar" });
+            }
 
             // Crear cancellation token
             var cts = new CancellationTokenSource();
-            _activeProcesses[SessionId] = cts;
+            _activeProcesses[sessionId] = cts;
+            _logger.LogInformation(">>> CancellationToken creado para sesión {SessionId}", sessionId);
 
-            // Ejecutar en segundo plano (fire-and-forget)
+            // Progreso inicial
+            var initialProgress = new ProcessProgressDto
+            {
+                Total = request.DocumentIds.Count,
+                Processed = 0,
+                Updated = 0,
+                PagesRemoved = 0,
+                Errors = 0,
+                Skipped = 0,
+                Status = "Iniciando",
+                CurrentDocumentName = null,
+                CurrentDocumentId = null
+            };
+            _logger.LogInformation(">>> ANTES de UpdateProgress para sesión {SessionId}", sessionId);
+            _progressStore.UpdateProgress(sessionId, initialProgress);
+            _logger.LogInformation(">>> DESPUÉS de UpdateProgress para sesión {SessionId}", sessionId);
+
+            // Lanzar tarea en segundo plano
             _ = Task.Run(async () =>
             {
-                // Crear un ámbito para esta tarea
                 using (var scope = _scopeFactory.CreateScope())
                 {
-                    // Resolver IProcessingService dentro del ámbito
                     var processingService = scope.ServiceProvider.GetRequiredService<IProcessingService>();
-
                     try
                     {
-                        _logger.LogInformation("Iniciando procesamiento para sesión {SessionId} con {Count} documentos",
-                            SessionId, request.DocumentIds.Count);
-
-                        
-                        await processingService.ProcessDocumentsAsync(request, SessionId, cts.Token);
+                        _logger.LogInformation(">>> Hilo de procesamiento iniciado para sesión {SessionId}", sessionId);
+                        await processingService.ProcessDocumentsAsync(request, sessionId, cts.Token);
                     }
                     catch (OperationCanceledException)
                     {
-                        _logger.LogInformation("Procesamiento cancelado para sesión {SessionId}", SessionId);
+                        _logger.LogInformation(">>> Procesamiento cancelado para sesión {SessionId}", sessionId);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error en procesamiento para sesión {SessionId}", SessionId);
-
-                        var errorProgress = new ProcessProgressDto
+                        _logger.LogError(ex, ">>> Error en procesamiento para sesión {SessionId}", sessionId);
+                        _progressStore.UpdateProgress(sessionId, new ProcessProgressDto
                         {
                             Total = request.DocumentIds.Count,
-                            Processed = 0,
-                            Updated = 0,
-                            PagesRemoved = 0,
-                            Errors = request.DocumentIds.Count,
-                            Skipped = 0,
-                            Status = $"Error crítico: {ex.Message}"
-                        };
-                        _progressStore.UpdateProgress(SessionId, errorProgress);
+                            Status = $"Error crítico: {ex.Message}",
+                            Errors = request.DocumentIds.Count
+                        });
                     }
                     finally
                     {
-                        _activeProcesses.Remove(SessionId);
+                        _activeProcesses.Remove(sessionId);
+                        _logger.LogInformation(">>> Procesamiento finalizado para sesión {SessionId}", sessionId);
                     }
-                } // Al salir del using, el ámbito se destruye y el DbContext se libera
+                }
             }, CancellationToken.None);
 
-            return Accepted(new { SessionId, message = "Procesamiento iniciado" });
+            _logger.LogInformation(">>> Respuesta Accepted para sesión {SessionId}", sessionId);
+            return Accepted(new { sessionId, message = "Procesamiento iniciado" });
         }
 
 
@@ -132,9 +170,11 @@ namespace ProDoctivityDS.Controllers
         [HttpGet("progress")]
         [ProducesResponseType(typeof(ProcessProgressDto), 200)]
         [ProducesResponseType(404)]
-        public ActionResult<ProcessProgressDto> GetProgress()
+        public ActionResult<ProcessProgressDto> GetProgress([FromHeader(Name = "X-Session-Id")] string sessionId)
         {
             var SessionId = GetOrCreateSessionId();
+            Response.Headers.TryAdd("X-Session-Id", SessionId);
+            _logger.LogInformation("StartProcessing: sessionId={SessionId}", sessionId);
             var progress = _progressStore.GetProgress(SessionId);
 
             if (progress == null)
@@ -155,6 +195,7 @@ namespace ProDoctivityDS.Controllers
         public IActionResult CancelProcessing()
         {
             var SessionId = GetOrCreateSessionId();
+            Response.Headers.TryAdd("X-Session-Id", SessionId);
             if (_activeProcesses.TryGetValue(SessionId, out var cts))
             {
                 cts.Cancel();
@@ -184,9 +225,37 @@ namespace ProDoctivityDS.Controllers
         public IActionResult ClearProgress()
         {
             var SessionId = GetOrCreateSessionId();
+            Response.Headers.TryAdd("X-Session-Id", SessionId);
             _progressStore.RemoveProgress(SessionId);
             _logger.LogDebug("Progreso eliminado para sesión {SessionId}", SessionId);
             return Ok(new { message = "Progreso eliminado" });
+        }
+
+        /// <summary>
+        /// Elimina un documento por su ID.
+        /// </summary>
+        /// <param name="documentId">ID del documento a eliminar</param>
+        /// <param name="cancellationToken">Token de cancelación</param>
+        /// <returns>Resultado de la operación</returns>
+        [HttpDelete("documents/{documentId}")]
+        public async Task<IActionResult> DeleteDocument(string documentId, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(documentId))
+                return BadRequest(new { message = "El ID del documento es requerido." });
+
+            try
+            {
+                var deleted = await _deletionService.DeleteDocumentAsync(documentId, cancellationToken);
+                if (deleted)
+                    return Ok(new { message = "Documento eliminado correctamente." });
+                else
+                    return NotFound(new { message = "Documento no encontrado." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al eliminar documento {DocumentId}", documentId);
+                return StatusCode(500, new { message = "Error interno al eliminar el documento." });
+            }
         }
     }
 }

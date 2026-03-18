@@ -5,6 +5,7 @@ export interface Document {
   documentTypeId: string;
   createdAt: number; // timestamp Unix
   analysisStatus?: string; // Pendiente, Removida, Conservada
+  data?: any;
 }
 
 // Interfaz para la respuesta paginada de la API

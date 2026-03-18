@@ -8,6 +8,14 @@ namespace ProDoctivityDS.Persistence.EntitiesConfiguration
     {
         public void Configure(EntityTypeBuilder<StoredConfiguration> builder)
         {
+            builder.Property(c => c.Username)
+           .HasMaxLength(100)               // Longitud máxima opcional
+           .IsRequired(false);               // Puede ser nulo si no se usa login automático
+
+            builder.Property(c => c.Password)
+                   .HasMaxLength(255)                // Suficiente para contraseñas o hash
+                   .IsRequired(false);
+
             // Garantizar que solo exista una fila (singleton)
             builder.HasIndex(c => c.Id)
                    .HasDatabaseName("IX_StoredConfigurations_Singleton")

@@ -1,5 +1,5 @@
-import { Component, signal, computed, inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { Component, signal, computed, inject, OnInit, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 
@@ -9,7 +9,6 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
-
 import { MatTableModule } from '@angular/material/table';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
@@ -18,7 +17,7 @@ import { MatIconModule } from '@angular/material/icon';
 
 // Servicios y modelos
 import { DocumentService } from '../../data/services/document.service';
-import { DocumentTypeService } from '../../data/services/document-type.service'; 
+import { DocumentTypeService } from '../../data/services/document-type.service';
 import { Document } from '../../core/models/document.model';
 import { DocumentType } from '../../core/models/document-type.model';
 import { SelectionService } from '../../data/services/selection.service';
@@ -29,7 +28,6 @@ import { SelectionService } from '../../data/services/selection.service';
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    // Material
     MatFormFieldModule,
     MatSelectModule,
     MatInputModule,
@@ -39,6 +37,7 @@ import { SelectionService } from '../../data/services/selection.service';
     MatPaginatorModule,
     MatProgressSpinnerModule,
     MatIconModule,
+    
   ],
   templateUrl: './document-search.html',
   styleUrls: ['./document-search.css']
@@ -50,14 +49,17 @@ export class DocumentSearchComponent implements OnInit {
   private selectionService = inject(SelectionService);
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
+  private cdr = inject(ChangeDetectorRef);
+  private ngZone = inject(NgZone);
 
   // Estado
+  copying = signal(false);
   documents = signal<Document[]>([]);
-  totalCount = signal(0);
+  totalCount = signal(0); // Ahora será un valor calculado
   loading = signal(false);
   error = signal<string | null>(null);
   selectedDocuments = signal<Set<string>>(new Set());
-  documentTypes = signal<DocumentType[]>([])
+  documentTypes = signal<DocumentType[]>([]);
 
   // Filtros
   filterForm: FormGroup = this.fb.group({
@@ -67,8 +69,8 @@ export class DocumentSearchComponent implements OnInit {
 
   // Paginación
   pageIndex = signal(0);
-  pageSize = signal(100);
-  pageSizeOptions = [10, 25, 50, 100];
+  pageSize = signal(100); // Valor inicial 15 (uno de los permitidos)
+  pageSizeOptions = [15, 30, 100]; // Solo estos valores
 
   // Columnas de la tabla
   displayedColumns = ['select', 'documentId', 'name', 'documentTypeName', 'createdAt'];
@@ -94,12 +96,12 @@ export class DocumentSearchComponent implements OnInit {
     this.onSearch();
 
     // Cargar selección guardada
-  this.selectionService.getSelectedDocuments().subscribe({
-    next: (selectedIds) => {
-      this.selectedDocuments.set(new Set(selectedIds));
-    },
-    error: (err) => console.error('Error al cargar selección', err)
-  });
+    this.selectionService.getSelectedDocuments().subscribe({
+      next: (selectedIds) => {
+        this.selectedDocuments.set(new Set(selectedIds));
+      },
+      error: (err) => console.error('Error al cargar selección', err)
+    });
   }
 
   loadDocumentTypes(): void {
@@ -118,16 +120,23 @@ export class DocumentSearchComponent implements OnInit {
       this.pageIndex(),
       this.pageSize(),
       name,
-      selectedTypeIds // <-- array de IDs
+      selectedTypeIds
     ).subscribe({
       next: (result) => {
-        this.documents.set(result.documents);
-        this.totalCount.set(result.totalCount);
-        this.loading.set(false);
-      },
+  this.ngZone.run(() => {
+    this.documents.set(result.documents);
+    this.totalCount.set(result.totalCount);
+    this.loading.set(false);
+    this.cdr.detectChanges();
+    setTimeout(() => this.cdr.detectChanges(), 0); // Forzar otra detección
+  });
+},
       error: (err) => {
-        this.error.set('Error al cargar documentos: ' + err.message);
-        this.loading.set(false);
+        this.ngZone.run(() => {
+          this.error.set('Error al cargar documentos: ' + err.message);
+          this.loading.set(false);
+          this.cdr.detectChanges();
+        });
       }
     });
   }
@@ -138,11 +147,12 @@ export class DocumentSearchComponent implements OnInit {
     this.onSearch();
   }
 
-
   onPageChange(event: PageEvent): void {
-    this.pageIndex.set(event.pageIndex);
-    this.pageSize.set(event.pageSize);
-    this.onSearch();
+    this.ngZone.run(() => {
+      this.pageIndex.set(event.pageIndex);
+      this.pageSize.set(event.pageSize);
+      this.onSearch();
+    });
   }
 
   // Selección
@@ -156,86 +166,113 @@ export class DocumentSearchComponent implements OnInit {
       }
       return newSet;
     });
-    // Notificar al backend
-  const isSelected = this.selectedDocuments().has(docId);
-  if (isSelected) {
-    this.selectionService.selectDocuments([docId]).subscribe({
-      error: (err) => {
-        console.error('Error al seleccionar', err);
-        // Revertir cambio local si falla
-        this.selectedDocuments.update(set => {
-          const revert = new Set(set);
-          revert.delete(docId);
-          return revert;
-        });
-      }
-    });
-  } else {
-    this.selectionService.clearAllSelection().subscribe({
-      error: (err) => {
-        console.error('Error al deseleccionar', err);
-        this.selectedDocuments.update(set => {
-          const revert = new Set(set);
-          revert.add(docId);
-          return revert;
-        });
-      }
-    });
+
+    const isSelected = this.selectedDocuments().has(docId);
+    if (isSelected) {
+      this.selectionService.selectDocuments([docId]).subscribe({
+        error: (err) => {
+          console.error('Error al seleccionar', err);
+          // Revertir cambio local si falla
+          this.selectedDocuments.update(set => {
+            const revert = new Set(set);
+            revert.delete(docId);
+            return revert;
+          });
+        }
+      });
+    } else {
+      this.selectionService.clearAllSelection().subscribe({
+        error: (err) => {
+          console.error('Error al deseleccionar', err);
+          this.selectedDocuments.update(set => {
+            const revert = new Set(set);
+            revert.add(docId);
+            return revert;
+          });
+        }
+      });
+    }
   }
-}
 
   isSelected(docId: string): boolean {
     return this.selectedDocuments().has(docId);
   }
 
   selectAll(): void {
-  const allIds = this.documents().map(d => d.documentId);
-  // Actualizar local
-  this.selectedDocuments.update(set => new Set([...set, ...allIds]));
-  // Notificar al backend
-  this.selectionService.selectDocuments(allIds).subscribe({
-    error: (err) => {
-      console.error('Error al seleccionar todos', err);
-      // Revertir: eliminar los que se intentaron agregar
-      this.selectedDocuments.update(set => {
-        const revert = new Set(set);
-        allIds.forEach(id => revert.delete(id));
-        return revert;
-      });
-    }
-  });
-}
-
-processSelected(): void {
-  if (this.selectedDocuments().size === 0) {
-    alert('Selecciona al menos un documento');
-    return;
-  }
-  // Navegar a la ruta de progreso
-  this.router.navigate(['/processing']);
-}
-
-clearAllSelection(): void {
-  const selectedCount = this.selectedDocuments().size;
-  if (selectedCount === 0) {
-    this.snackBar.open('No hay documentos seleccionados', 'Cerrar', { duration: 2000 });
-    return;
+    const allIds = this.documents().map(d => d.documentId);
+    this.selectedDocuments.update(set => new Set([...set, ...allIds]));
+    this.selectionService.selectDocuments(allIds).subscribe({
+      error: (err) => {
+        console.error('Error al seleccionar todos', err);
+        this.selectedDocuments.update(set => {
+          const revert = new Set(set);
+          allIds.forEach(id => revert.delete(id));
+          return revert;
+        });
+      }
+    });
   }
 
-
-  this.selectionService.clearAllSelection().subscribe({
-    next: () => {
-      this.selectedDocuments.set(new Set()); // Limpia el estado local
-      this.snackBar.open('Selección eliminada', 'OK', { duration: 2000 });
-    },
-    error: (err) => {
-      console.error('Error al limpiar selección', err);
-      this.snackBar.open('Error al limpiar selección', 'Cerrar', { duration: 3000 });
+  processSelected(): void {
+    if (this.selectedDocuments().size === 0) {
+      alert('Selecciona al menos un documento');
+      return;
     }
-  });
-}
+    this.router.navigate(['/processing']);
+  }
 
-  // Método para el checkbox de cabecera
+  clearAllSelection(): void {
+    const selectedCount = this.selectedDocuments().size;
+    if (selectedCount === 0) {
+      this.snackBar.open('No hay documentos seleccionados', 'Cerrar', { duration: 2000 });
+      return;
+    }
+
+    this.selectionService.clearAllSelection().subscribe({
+      next: () => {
+        this.selectedDocuments.set(new Set());
+        this.snackBar.open('Selección eliminada', 'OK', { duration: 2000 });
+      },
+      error: (err) => {
+        console.error('Error al limpiar selección', err);
+        this.snackBar.open('Error al limpiar selección', 'Cerrar', { duration: 3000 });
+      }
+    });
+  }
+  async copyIdentityNumbers(): Promise<void> {
+    // Evitar múltiples clics mientras se procesa
+    if (this.copying()) return;
+    this.copying.set(true);
+
+    try {
+      const selectedDocs = this.documents().filter(doc => this.selectedDocuments().has(doc.documentId));
+      if (selectedDocs.length === 0) {
+        this.snackBar.open('No hay documentos seleccionados', 'Cerrar', { duration: 2000 });
+        return;
+      }
+
+      // Extraer los números de documento de identidad
+      const numeros = selectedDocs
+        .map(doc => doc.data?.numeroDocumentoIdentidad)
+        .filter(num => num != null && num !== '')
+        .map(num => num.toString());
+
+      if (numeros.length === 0) {
+        this.snackBar.open('Ningún documento seleccionado tiene número de identidad', 'Cerrar', { duration: 3000 });
+        return;
+      }
+
+      const text = numeros.join('\n');
+      await navigator.clipboard.writeText(text);
+      this.snackBar.open(`${numeros.length} número(s) de identidad copiado(s)`, 'OK', { duration: 2000 });
+    } catch (err) {
+      console.error('Error al copiar', err);
+      this.snackBar.open('Error al copiar al portapapeles', 'Cerrar', { duration: 3000 });
+    } finally {
+      this.copying.set(false);
+    }
+  }
+
   toggleAll(): void {
     if (this.allSelected()) {
       this.clearAllSelection();

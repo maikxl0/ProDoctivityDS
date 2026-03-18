@@ -204,6 +204,7 @@ namespace ProDoctivityDS.Controllers
             var typeIds = await _selectionService.GetSelectedTypeIdsAsync(SessionId, documentTypeMap);
             return Ok(typeIds);
         }
+
         /// <summary>
         /// Elimina toda la selección de documentos de la sesión actual.
         /// </summary>

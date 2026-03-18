@@ -1,0 +1,135 @@
+<div class="container">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>Verificar documentos duplicados por cédula</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="search-form">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Cédula</mat-label>
+          <input
+            matInput
+            [(ngModel)]="cedula"
+            placeholder="Ingrese la cédula"
+            (keyup.enter)="checkDuplicates()"
+          />
+        </mat-form-field>
+        <button
+          mat-raised-button
+          color="primary"
+          (click)="checkDuplicates()"
+          [disabled]="!cedula.trim() || loading"
+        >
+          <mat-icon>search</mat-icon>
+          {{ loading ? 'Buscando...' : 'Buscar duplicados' }}
+        </button>
+      </div>
+
+      <!-- Indicador de carga -->
+      @if (loading) {
+        <div class="loading-indicator">
+          <mat-spinner diameter="40"></mat-spinner>
+          <span>Procesando solicitud...</span>
+        </div>
+      }
+
+      <!-- Mensaje de error -->
+      @if (error) {
+        <div class="error-message">
+          <mat-icon>error</mat-icon> {{ error }}
+        </div>
+      }
+
+      <!-- Mensaje informativo (sin duplicados) -->
+      @if (infoMessage) {
+        <div class="info-message">
+          <mat-icon>info</mat-icon> {{ infoMessage }}
+        </div>
+      }
+
+      <!-- Resultados -->
+      @if (result && result.groups.length > 0) {
+        <div class="results">
+          <div class="results-header">
+            <h3>
+              Resultados: {{ result.totalDocuments }} documentos encontrados,
+              {{ result.groups.length }} grupo(s) de duplicados
+            </h3>
+            <button
+              mat-raised-button
+              color="warn"
+              (click)="deleteAllDuplicates()"
+              [disabled]="deleting"
+              matTooltip="Eliminar todos los duplicados (conservar uno por grupo)"
+            >
+              <mat-icon>delete_sweep</mat-icon>
+              Eliminar todos los duplicados
+            </button>
+          </div>
+
+          @for (group of result.groups; track group.groupKey) {
+            <mat-expansion-panel class="group-panel">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <mat-icon>content_copy</mat-icon>
+                  Grupo de {{ group.documents.length }} documentos
+                </mat-panel-title>
+                <mat-panel-description>
+                  {{ group.reason }}
+                </mat-panel-description>
+              </mat-expansion-panel-header>
+
+              <div class="group-actions">
+                <button
+                  mat-raised-button
+                  color="warn"
+                  (click)="deleteAllDuplicatesInGroup(group)"
+                  [disabled]="deleting"
+                  matTooltip="Eliminar todos los duplicados de este grupo (conservar el primero)"
+                >
+                  <mat-icon>delete_outline</mat-icon>
+                  Eliminar duplicados del grupo
+                </button>
+              </div>
+
+              <table class="documents-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Tipo</th>
+                    <th>Tamaño (KB)</th>
+                    <th>Fecha</th>
+                    <th>ID</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (doc of group.documents; track doc.documentId) {
+                    <tr>
+                      <td>{{ doc.name }}</td>
+                      <td>{{ doc.documentTypeName }}</td>
+                      <td>{{ (doc.fileSize / 1024).toFixed(2) }}</td>
+                      <td>{{ doc.createdAt | date:'yyyy-MM-dd' }}</td>
+                      <td>{{ doc.documentId | slice:0:8 }}...</td>
+                      <td>
+                        <button
+                          mat-icon-button
+                          color="warn"
+                          (click)="deleteDocument(doc.documentId)"
+                          [disabled]="deleting"
+                          matTooltip="Eliminar documento"
+                        >
+                          <mat-icon>delete</mat-icon>
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </mat-expansion-panel>
+          }
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>

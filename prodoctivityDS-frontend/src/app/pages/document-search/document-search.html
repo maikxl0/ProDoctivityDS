@@ -1,7 +1,7 @@
 <div class="search-container">
   <form [formGroup]="filterForm" (ngSubmit)="onSearch()" class="filter-form">
     <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Buscar en documento </mat-label>
+      <mat-label>Buscar en documento</mat-label>
       <input matInput formControlName="name" placeholder="Buscar..." />
     </mat-form-field>
 
@@ -24,6 +24,22 @@
       >
         <mat-icon>clear</mat-icon> Limpiar todo
       </button>
+
+      <!-- Botón para copiar números de identidad con spinner -->
+      <button
+        mat-raised-button
+        color="accent"
+        (click)="copyIdentityNumbers()"
+        [disabled]="selectedDocuments().size === 0 || copying()"
+      >
+        @if (copying()) {
+          <mat-spinner diameter="20" style="display: inline-block; margin-right: 8px;"></mat-spinner>
+        } @else {
+          <mat-icon>badge</mat-icon>
+        }
+        Copiar Cédulas
+      </button>
+
       <button mat-raised-button color="primary" (click)="processSelected()">
         Procesar seleccionados
       </button>
@@ -38,6 +54,17 @@
   } @else if (error()) {
     <div class="error-message">{{ error() }}</div>
   } @else {
+    <!-- Paginador superior -->
+    <mat-paginator
+      [length]="totalCount()"
+      [pageSize]="pageSize()"
+      [pageIndex]="pageIndex()"
+      [pageSizeOptions]="pageSizeOptions"
+      (page)="onPageChange($event)"
+      class="top-paginator"
+    >
+    </mat-paginator>
+
     <div class="table-container">
       <table mat-table [dataSource]="documents()" class="mat-elevation-z8">
         <!-- Checkbox Column -->
@@ -63,7 +90,7 @@
         <!-- ID Column -->
         <ng-container matColumnDef="documentId">
           <th mat-header-cell *matHeaderCellDef>ID</th>
-          <td mat-cell *matCellDef="let doc">{{ doc.documentId | slice: 0 : 8 }}...</td>
+          <td mat-cell *matCellDef="let doc">{{ doc.documentId | slice:0:8 }}...</td>
         </ng-container>
 
         <!-- Name Column -->
@@ -81,7 +108,7 @@
         <!-- Date Column -->
         <ng-container matColumnDef="createdAt">
           <th mat-header-cell *matHeaderCellDef>Fecha</th>
-          <td mat-cell *matCellDef="let doc">{{ doc.createdAt | date: 'yyyy-MM-dd' }}</td>
+          <td mat-cell *matCellDef="let doc">{{ doc.createdAt | date:'yyyy-MM-dd' }}</td>
         </ng-container>
 
         <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
@@ -89,6 +116,7 @@
       </table>
     </div>
 
+    <!-- Paginador inferior -->
     <mat-paginator
       [length]="totalCount()"
       [pageSize]="pageSize()"

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -29,11 +29,11 @@ export class ProcessingComponent implements OnInit, OnDestroy {
   private processingService = inject(ProcessingService);
   private selectionService = inject(SelectionService);
   private snackBar = inject(MatSnackBar);
+  private cdr = inject(ChangeDetectorRef);
 
   selectedCount = 0;
   selectedDocumentIds: string[] = [];
 
-  // Estado del proceso
   isProcessing = false;
   progress: ProcessProgress | null = null;
   private pollingSubscription?: Subscription;
@@ -44,13 +44,28 @@ export class ProcessingComponent implements OnInit, OnDestroy {
     this.checkExistingProgress();
   }
 
+  ngOnDestroy(): void {
+    this.stopPolling();
+    // Si el progreso está completado al salir, lo limpiamos
+    if (this.progress?.status === 'Completado') {
+      this.clearProgress();
+    }
+  }
+
   private checkExistingProgress(): void {
     this.processingService.getProgress().subscribe({
       next: (progress) => {
         if (progress) {
-          this.progress = progress;
-          this.isProcessing = true;
-          this.startPolling();
+          // Solo mostrar si el proceso aún está en curso
+          if (progress.status !== 'Completado') {
+            this.progress = progress;
+            this.isProcessing = true;
+            this.startPolling();
+          } else {
+            // Si ya está completado, lo limpiamos automáticamente
+            this.clearProgress();
+          }
+          this.cdr.detectChanges();
         }
       },
       error: (err) => {
@@ -61,18 +76,20 @@ export class ProcessingComponent implements OnInit, OnDestroy {
     });
   }
 
-  ngOnDestroy(): void {
-    this.stopPolling();
-  }
-
   private loadSelectedDocuments(): void {
     this.selectionService.getSelectedDocuments().subscribe(ids => {
       this.selectedDocumentIds = ids;
       this.selectedCount = ids.length;
+      this.cdr.detectChanges();
     });
   }
 
   startProcessing(): void {
+    if (this.isProcessing) {
+      console.log('Ya hay un proceso en curso');
+      return;
+    }
+
     if (this.selectedDocumentIds.length === 0) {
       this.snackBar.open('No hay documentos seleccionados', 'Cerrar', { duration: 3000 });
       return;
@@ -80,46 +97,55 @@ export class ProcessingComponent implements OnInit, OnDestroy {
 
     const request: ProcessRequest = {
       documentIds: this.selectedDocumentIds,
-      // Aquí podrías obtener opciones adicionales de configuración si lo deseas
     };
 
     this.isProcessing = true;
-    this.progress = null; // Reiniciamos el progreso anterior
+    this.progress = null;
+    this.cdr.detectChanges();
+
     this.processingService.startProcessing(request).subscribe({
       next: (response) => {
         this.sessionId = response.sessionId;
         this.snackBar.open('Procesamiento iniciado', 'OK', { duration: 2000 });
         this.startPolling();
+        this.cdr.detectChanges();
       },
       error: (err) => {
         this.isProcessing = false;
         this.snackBar.open('Error al iniciar procesamiento', 'Cerrar', { duration: 3000 });
         console.error(err);
+        this.cdr.detectChanges();
       }
     });
   }
 
   private startPolling(): void {
+    console.log('Iniciando polling cada 2 segundos');
     this.pollingSubscription = interval(2000).pipe(
+      tap(() => console.log('Enviando petición de progreso...')),
       switchMap(() => this.processingService.getProgress()),
       tap(progress => {
+        console.log('Progreso recibido:', progress);
         if (progress) {
           this.progress = progress;
           if (progress.status === 'Completado' || progress.processed >= progress.total) {
+            console.log('Procesamiento completado');
             this.stopPolling();
             this.isProcessing = false;
             this.snackBar.open('Procesamiento completado', 'OK', { duration: 3000 });
           }
+          this.cdr.detectChanges();
         }
       }),
       catchError(err => {
+        console.error('Error al obtener progreso', err);
         if (err.status === 404) {
-          // Progreso aún no disponible, seguimos esperando
+          console.log('Progreso no encontrado (404), reintentando...');
           return of(null);
         }
-        console.error('Error al obtener progreso', err);
         this.stopPolling();
         this.isProcessing = false;
+        this.cdr.detectChanges();
         return of(null);
       })
     ).subscribe();
@@ -140,6 +166,7 @@ export class ProcessingComponent implements OnInit, OnDestroy {
           this.stopPolling();
           this.isProcessing = false;
           this.progress = null;
+          this.cdr.detectChanges();
         }, 1000);
       },
       error: (err) => {
@@ -154,12 +181,12 @@ export class ProcessingComponent implements OnInit, OnDestroy {
       next: () => {
         this.progress = null;
         this.isProcessing = false;
+        this.cdr.detectChanges();
       },
       error: (err) => console.error(err)
     });
   }
 
-  // Getter para calcular el porcentaje si el backend no lo envía
   get percentComplete(): number {
     if (!this.progress || this.progress.total === 0) return 0;
     const completed = this.progress.processed + this.progress.errors + this.progress.skipped;

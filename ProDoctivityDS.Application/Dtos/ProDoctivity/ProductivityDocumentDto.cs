@@ -9,7 +9,7 @@ namespace ProDoctivityDS.Application.Dtos.ProDoctivity
         public string DocumentId { get; set; } = string.Empty;
 
         [JsonPropertyName("id")]
-        public string? Id { get; set; } // Alternativo, a veces viene como "id"
+        public string? Id { get; set; }
 
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
@@ -27,7 +27,7 @@ namespace ProDoctivityDS.Application.Dtos.ProDoctivity
         public string? DocumentVersionId { get; set; }
 
         [JsonPropertyName("createdAt")]
-        public long? CreatedAt { get; set; } // Timestamp Unix
+        public long? CreatedAt { get; set; }
 
         [JsonPropertyName("updatedAt")]
         public long? UpdatedAt { get; set; }

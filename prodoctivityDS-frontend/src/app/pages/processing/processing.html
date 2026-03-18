@@ -12,7 +12,7 @@
             mat-raised-button 
             color="primary" 
             (click)="startProcessing()" 
-            [disabled]="selectedCount === 0">
+            [disabled]="selectedCount === 0 || isProcessing">   <!-- 👈 Cambio aquí -->
             <mat-icon>play_arrow</mat-icon> Procesar Seleccionados
           </button>
         </div>

@@ -17,22 +17,24 @@ export class DocumentService {
 
   // Mapeo para documentos del POST (con prefijo $)
   private mapPostDocument(doc: any): Document {
-    return {
-      documentId: doc.$documentId,
-      name: doc.$name,
-      documentTypeName: doc.$documentTypeName,
-      documentTypeId: doc.$documentTypeId,
-      createdAt: doc.$createdAt
-    };
-  }
+  return {
+    documentId: doc.$documentId,
+    name: doc.$name,
+    documentTypeName: doc.$documentTypeName,
+    documentTypeId: doc.$documentTypeId,
+    createdAt: doc.$createdAt,
+    data: doc.data // Si existe, aunque en esta respuesta no viene
+  };
+}
 
-  // Mapeo para documentos del GET (sin prefijo, asumiendo que vienen como antes)
+  // Mapeo para documentos del GET (sin prefijo)
   private mapGetDocument(doc: any): Document {
     return {
       documentId: doc.documentId,
       name: doc.name,
       documentTypeName: doc.documentTypeName,
       documentTypeId: doc.documentTypeId,
+      data: doc.data,
       createdAt: doc.createdAt
     };
   }
@@ -41,47 +43,56 @@ export class DocumentService {
    * Obtiene todos los documentos sin filtros (GET)
    */
   getAllDocuments(page: number, pageSize: number): Observable<SearchResponse> {
-    const params = new HttpParams()
-      .set('page', page.toString())
-      .set('rowsPerPage', pageSize.toString());
+  const params = new HttpParams()
+    .set('page', page.toString())
+    .set('rowsPerPage', pageSize.toString());
 
-    return this.http.get<any>(this.apiUrl, { params }).pipe(
-      map(response => ({
-        documents: (response.documents || []).map((d: any) => this.mapGetDocument(d)),
-        totalCount: response.totalCount,
-        currentPage: response.currentPage
-      }))
-    );
-  }
+  return this.http.get<any>(this.apiUrl, { params }).pipe(
+    map(response => {
+      const documents = (response.documents || []).map((d: any) => this.mapGetDocument(d));
+      const totalCount = response.totalCount || response.total || 0; // Intenta ambas
+      return {
+        documents,
+        totalCount,
+        currentPage: page
+      };
+    })
+  );
+}
 
   /**
    * Busca documentos con filtros (POST)
    */
   searchDocumentsWithFilters(
-    documentTypeIds: string[] | undefined,
-    query: string | undefined,
-    page: number,
-    pageSize: number
-  ): Observable<SearchResponse> {
-    let params = new HttpParams()
-      .set('page', page.toString())
-      .set('rowsPerPage', pageSize.toString());
+  documentTypeIds: string[] | undefined,
+  query: string | undefined,
+  page: number,
+  pageSize: number
+): Observable<SearchResponse> {
+  let params = new HttpParams()
+    .set('page', page.toString())
+    .set('rowsPerPage', pageSize.toString());
 
-    if (documentTypeIds && documentTypeIds.length > 0) {
-      params = params.set('documentTypeIds', documentTypeIds.join(','));
-    }
-    if (query) {
-      params = params.set('query', query);
-    }
-
-    return this.http.post<any>(this.apiUrl, null, { params }).pipe(
-      map(response => ({
-        documents: (response.documents || []).map((d: any) => this.mapPostDocument(d)),
-        totalCount: response.totalCount,
-        currentPage: response.currentPage
-      }))
-    );
+  if (documentTypeIds && documentTypeIds.length > 0) {
+    params = params.set('documentTypeIds', documentTypeIds.join(','));
   }
+  if (query) {
+    params = params.set('query', query);
+  }
+
+  return this.http.post<any>(this.apiUrl, null, { params }).pipe(
+    map(response => {
+      // ✅ La respuesta tiene 'documents' y 'totalCount'
+      const documents = (response.documents || []).map((d: any) => this.mapPostDocument(d));
+      const totalCount = response.totalCount || 0;
+      return {
+        documents,
+        totalCount,
+        currentPage: page
+      };
+    })
+  );
+}
 
   /**
    * Método unificado (usado por el componente)

@@ -2,7 +2,9 @@
 using ProDoctivityDS.Application.Dtos.ProDoctivity;
 using ProDoctivityDS.Application.Dtos.Response;
 using ProDoctivityDS.Application.Interfaces;
-using System.ComponentModel;
+using ProDoctivityDS.Domain.Interfaces;
+using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -12,13 +14,16 @@ namespace ProDoctivityDS.Application.Services
     public class ProductivityApiClient : IProductivityApiClient
     {
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IStoredConfigurationRepository _configurationRepository;
         private readonly ILogger<ProductivityApiClient> _logger;
         private readonly JsonSerializerOptions _jsonOptions;
 
         public ProductivityApiClient(
             IHttpClientFactory httpClientFactory,
-            ILogger<ProductivityApiClient> logger)
+            ILogger<ProductivityApiClient> logger,
+            IStoredConfigurationRepository storedConfigurationRepository)
         {
+            _configurationRepository = storedConfigurationRepository;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _jsonOptions = new JsonSerializerOptions
@@ -46,6 +51,7 @@ namespace ProDoctivityDS.Application.Services
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             return client;
         }
+        
 
         public async Task<(List<ProductivityDocumentDto> Documents, int TotalCount)> GetAllDocumentsAsync(
             string baseUrl,
@@ -59,7 +65,6 @@ namespace ProDoctivityDS.Application.Services
         {
             try
             {
-                // Validar que pageSize sea 15, 30 o 100
                 int[] allowedPageSizes = { 15, 30, 100 };
                 if (!allowedPageSizes.Contains(pageSize))
                 {
@@ -68,6 +73,7 @@ namespace ProDoctivityDS.Application.Services
                 }
 
                 var client = CreateClient(baseUrl, bearerToken, apiKey, apiSecret, cookie);
+                await EnsureValidTokenAsync(cancellationToken);
 
                 string url = $"app/documents?dateStart=0&pageNumber={page}&rowsPerPage={pageSize}&sortField=updatedAt&sortDirection=DESC";
 
@@ -98,7 +104,6 @@ namespace ProDoctivityDS.Application.Services
             }
         }
 
-
         // ---------- GetDocumentsAsync ----------
         public async Task<(List<POSTDocumentDto> Documents, int TotalCount)> GetDocumentsAsync(
             string baseUrl,
@@ -114,14 +119,13 @@ namespace ProDoctivityDS.Application.Services
         {
             try
             {
-                // Validar pageSize (15, 30, 100)
                 int[] allowedPageSizes = { 15, 30, 100 };
                 if (!allowedPageSizes.Contains(pageSize))
                 {
                     _logger.LogWarning("pageSize {PageSize} no válido. Se usará 100.", pageSize);
                     pageSize = 100;
                 }
-
+                await EnsureValidTokenAsync(cancellationToken);
                 var client = CreateClient(baseUrl, bearerToken, apiKey, apiSecret, cookie);
 
                 bool hasQuery = !string.IsNullOrWhiteSpace(query);
@@ -207,6 +211,7 @@ namespace ProDoctivityDS.Application.Services
         {
             try
             {
+                await EnsureValidTokenAsync(cancellationToken);
                 var client = CreateClient(baseUrl, bearerToken);
                 var url = $"documents/{documentId}";
                 var response = await client.GetAsync(url, cancellationToken);
@@ -224,9 +229,34 @@ namespace ProDoctivityDS.Application.Services
                 throw;
             }
         }
+        public async Task<DocumentVersionDetailResponse> GetDocumentVersionDetailAsync(
+            string baseUrl,
+            string bearerToken,
+            string documentId,
+            string versionId,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await EnsureValidTokenAsync(cancellationToken);
+                var client = CreateClient(baseUrl, bearerToken);
+                var url = $"app/documents/{documentId}/versions/{versionId}";
+                var response = await client.GetAsync(url, cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                var detail = JsonSerializer.Deserialize<DocumentVersionDetailResponse>(json, _jsonOptions);
+                return detail;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener detalle de versión {VersionId} del documento {DocumentId}", versionId, documentId);
+                throw;
+            }
+        }
 
         // ---------- GetDocumentVersionsAsync ----------
-        
+
         public async Task<List<ProductivityVersionDto>> GetDocumentVersionsAsync(
             string baseUrl,
             string bearerToken,
@@ -235,6 +265,7 @@ namespace ProDoctivityDS.Application.Services
         {
             try
             {
+                await EnsureValidTokenAsync(cancellationToken);
                 var client = CreateClient(baseUrl, bearerToken);
                 var url = $"app/documents/{documentId}/versions-list";
                 var response = await client.GetAsync(url, cancellationToken);
@@ -261,6 +292,7 @@ namespace ProDoctivityDS.Application.Services
             string? cookie = null,
             CancellationToken cancellationToken = default)
         {
+            await EnsureValidTokenAsync(cancellationToken);
             var client = CreateClient(baseUrl, bearerToken, apiKey, apiSecret, cookie);
             var url = "ecm/document-types";
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -312,6 +344,46 @@ namespace ProDoctivityDS.Application.Services
             }
         }
 
+        public async Task<bool> DeleteDocumentAsync(
+            string baseUrl,
+            string bearerToken,
+            string documentId,
+            string? apiKey = null,
+            string? apiSecret = null,
+            string? cookie = null,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var client = CreateClient(baseUrl, bearerToken, apiKey, apiSecret, cookie);
+                var url = $"app/documents/{documentId}";
+
+                var response = await client.DeleteAsync(url, cancellationToken);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Documento {DocumentId} eliminado exitosamente.", documentId);
+                    return true;
+                }
+                else if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    _logger.LogWarning("Documento {DocumentId} no encontrado para eliminar.", documentId);
+                    return false; // O lanza una excepción específica, según prefieras
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError("Error al eliminar documento {DocumentId}. Status: {StatusCode}, Respuesta: {Error}",
+                        documentId, response.StatusCode, errorContent);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Excepción al eliminar documento {DocumentId}", documentId);
+                throw;
+            }
+        }
 
         // ---------- UploadPdfAsync ----------
         public async Task<bool> UploadPdfAsync(
@@ -321,41 +393,54 @@ namespace ProDoctivityDS.Application.Services
             byte[] pdfContent,
             string documentTypeId,
             string? parentVersionId = null,
+            object? data = null,
+            List<string>? filesName = null,
             CancellationToken cancellationToken = default)
         {
             try
             {
-                var client = CreateClient(baseUrl, bearerToken);
+                await EnsureValidTokenAsync(cancellationToken);
+                var client = CreateClient(baseUrl, bearerToken); // Solo necesitas bearerToken, los demás ya están en el cliente por defecto
                 var url = "app/documents";
 
-                // Convertir PDF a Data URL
-                var dataUrl = BytesToDataUrl(pdfContent, "application/pdf");
+                // 1. Convertir PDF a Data URL (sin saltos de línea)
+                var base64 = Convert.ToBase64String(pdfContent);
+                // En .NET Framework, Convert.ToBase64String puede agregar saltos de línea cada 76 caracteres, los eliminamos
+                base64 = base64.Replace("\n", "").Replace("\r", "");
+                var dataUrl = $"data:application/pdf;base64,{base64}";
 
-                var payload = new ProductivityUploadRequestDto
+                // 2. Preparar el objeto data (si es null, enviar objeto vacío como en Python)
+                var dataObject = data ?? new object();
+
+                // 3. Construir payload exactamente como en Python
+                var payload = new Dictionary<string, object>
                 {
-                    DocumentTypeId = documentTypeId,
-                    ContentType = "application/pdf",
-                    Data = new { }, // Si se requieren metadatos adicionales, se pueden agregar
-                    Documents = new List<string> { dataUrl },
-                    MustUpdateBinaries = true,
-                    ParentDocumentVersionId = parentVersionId,
-                    FilesName = new List<string> { fileName },
-                    OriginMethod = "imported"
+                    ["documentTypeId"] = documentTypeId,
+                    ["contentType"] = "application/pdf",
+                    ["data"] = dataObject,
+                    ["documents"] = new[] { dataUrl },
+                    ["mustUpdateBinaries"] = true,
+                    ["parentDocumentVersionId"] = parentVersionId,
+                    ["originMethod"] = "imported",
+                    ["filesName"] = filesName ?? new List<string>() // Si es null, lista vacía
                 };
 
+                // 4. Serializar con camelCase (como espera la API)
                 var jsonPayload = JsonSerializer.Serialize(payload, _jsonOptions);
-                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                _logger.LogDebug("Payload a enviar: {Payload}", jsonPayload);
 
+                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                 var response = await client.PostAsync(url, content, cancellationToken);
+                var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
                 if (response.IsSuccessStatusCode)
                 {
-                    _logger.LogInformation("PDF subido exitosamente. Nombre: {FileName}", fileName);
+                    _logger.LogInformation("PDF subido exitosamente. Respuesta: {Response}", responseBody);
                     return true;
                 }
                 else
                 {
-                    var error = await response.Content.ReadAsStringAsync(cancellationToken);
-                    _logger.LogError("Error al subir PDF. Status: {StatusCode}, Respuesta: {Error}", response.StatusCode, error);
+                    _logger.LogError("Error al subir PDF. Status: {StatusCode}, Respuesta: {Response}", response.StatusCode, responseBody);
                     return false;
                 }
             }
@@ -365,19 +450,83 @@ namespace ProDoctivityDS.Application.Services
                 return false;
             }
         }
-
+       
         private byte[] DataUrlToBytes(string dataUrl)
         {
             var base64Data = dataUrl.Substring(dataUrl.IndexOf(",") + 1);
             return Convert.FromBase64String(base64Data);
         }
-
-        private string BytesToDataUrl(byte[] bytes, string mimeType)
+        public async Task EnsureValidTokenAsync(CancellationToken cancellationToken)
         {
-            var base64 = Convert.ToBase64String(bytes);
-            return $"data:{mimeType};base64,{base64}";
+            var config = await _configurationRepository.GetActiveConfigurationAsync();
+            if (string.IsNullOrEmpty(config.BearerToken) || IsTokenExpired(config.BearerToken))
+            {
+
+                var newToken = await LoginAsync(
+                    config.ApiBaseUrl,
+                    config.Username ?? throw new InvalidOperationException("Username no configurado"),
+                    config.Password ?? throw new InvalidOperationException("Password no configurado"),
+                    config.ApiKey,
+                    config.ApiSecret,
+                    config.CookieSessionId,
+                    cancellationToken);
+
+                config.BearerToken = newToken;
+                await _configurationRepository.UpdateConfigurationAsync(config); // Necesitas implementar este método
+
+            }
         }
 
-        
+        private bool IsTokenExpired(string token)
+        {
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                var jwtToken = handler.ReadJwtToken(token);
+                var expClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == "exp")?.Value;
+                if (expClaim != null && long.TryParse(expClaim, out var expSeconds))
+                {
+                    var expirationDate = DateTimeOffset.FromUnixTimeSeconds(expSeconds).UtcDateTime;
+                    return expirationDate <= DateTime.UtcNow.AddMinutes(5); // margen de 5 minutos
+                }
+                return true;
+            }
+            catch
+            {
+                return true; // Si hay error, asumimos expirado
+            }
+        }
+
+        public async Task<string> LoginAsync(
+            string baseUrl,
+            string username,
+            string password,
+            string? apiKey = null,
+            string? apiSecret = null,
+            string? cookie = null,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var client = CreateClient(baseUrl, "", apiKey, apiSecret, cookie); // bearerToken vacío inicialmente
+                var url = "users/login";
+
+                var payload = new { username, password };
+                var jsonPayload = JsonSerializer.Serialize(payload, _jsonOptions);
+                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync(url, content, cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                var loginResponse = JsonSerializer.Deserialize<LoginResponse>(json, _jsonOptions);
+                return loginResponse?.Token ?? throw new Exception("No se recibió token en la respuesta");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en LoginAsync para usuario {Username}", username);
+                throw;
+            }
+        }
     }
 }

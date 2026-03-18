@@ -3,7 +3,6 @@ using ProDoctivityDS.Application.Interfaces;
 using ProDoctivityDS.Application.Mappings;
 using ProDoctivityDS.Application.Services;
 
-
 namespace ProDoctivityDS.Application
 {
     public static class ApplicationDependency
@@ -21,16 +20,20 @@ namespace ProDoctivityDS.Application
             services.AddScoped<ISearchService, SearchService>();
             services.AddScoped<ISelectionService, SelectionService>();
             services.AddScoped<IProcessingService, ProcessingService>();
-            services.AddScoped<IProcessingProgressStore, ProcessingProgressStore>();
             services.AddScoped<IAnalysisService, AnalysisService>();
             services.AddScoped<ILogService, LogService>();
             services.AddScoped<IDocumentTypeService, DocumentTypeService>();
+            services.AddScoped<IAuthService, AuthService>();
+            services.AddScoped<IDuplicateDetectionService, DuplicateDetectionService>();
+            services.AddScoped<IDocumentDeletionService, DocumentDeletionService>();
+
 
             services.AddScoped<IProductivityApiClient, ProductivityApiClient>();
             services.AddScoped<IFileStorageService, FileStorageService>();
 
+            services.AddSingleton<IProcessingProgressStore, ProcessingProgressStore>();
             // AutoMapper
-            services.AddAutoMapper(typeof(MappingProfile));
+            services.AddAutoMapper(config => { }, typeof(MappingProfile));
         }
     }
 }

@@ -17,7 +17,7 @@ namespace ProDoctivityDS.Application.Dtos.ProDoctivity
         public string? DocumentVersionId { get; set; }
 
         [JsonPropertyName("$createdAt")]
-        public long CreatedAt { get; set; } // Los timestamp vienen como números largos
+        public long CreatedAt { get; set; }
 
         [JsonPropertyName("$updatedAt")]
         public long UpdatedAt { get; set; }
@@ -44,7 +44,7 @@ namespace ProDoctivityDS.Application.Dtos.ProDoctivity
         public string? DocumentTypeVersionId { get; set; }
 
         [JsonPropertyName("$generationToken")]
-        public object? GenerationToken { get; set; } // Puede ser null o string
+        public object? GenerationToken { get; set; }
 
         [JsonPropertyName("$templateId")]
         public object? TemplateId { get; set; }

@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using ProDoctivityDS.Application.Dtos.Request;
 using ProDoctivityDS.Application.Dtos.Response;
 using ProDoctivityDS.Application.Interfaces;

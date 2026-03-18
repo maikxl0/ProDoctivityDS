@@ -24,6 +24,8 @@ namespace ProDoctivityDS.Domain.Entities
         public string AnalysisRulesJson { get; set; } = "{}";
 
         public DateTime LastModified { get; set; } = DateTime.UtcNow;
+        public string? Username { get; set; }
+        public string? Password { get; set; }
 
         // Propiedades no mapeadas para trabajar con objetos fuertemente tipados
         [NotMapped]

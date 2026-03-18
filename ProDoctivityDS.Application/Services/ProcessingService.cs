@@ -1,11 +1,14 @@
 ﻿using Domain.Interfaces.Repositories;
 using Microsoft.Extensions.Logging;
+using ProDoctivityDS.Application.Dtos.ProDoctivity;
 using ProDoctivityDS.Application.Dtos.Request;
 using ProDoctivityDS.Application.Dtos.Response;
+using ProDoctivityDS.Application.Dtos.ValueObjects;
 using ProDoctivityDS.Application.Interfaces;
 using ProDoctivityDS.Domain.Entities;
 using ProDoctivityDS.Domain.Entities.ValueObjects;
 using ProDoctivityDS.Domain.Interfaces;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace ProDoctivityDS.Application.Services
 {
@@ -44,14 +47,14 @@ namespace ProDoctivityDS.Application.Services
         }
 
         public async Task ProcessDocumentsAsync(
-    ProcessRequestDto request,
-    string sessionId,
-    CancellationToken cancellationToken = default)
+            ProcessRequestDto request,
+            string sessionId,
+            CancellationToken cancellationToken = default)
         {
             // 1. Obtener configuración activa
-            var config = await _configurationRepository.GetActiveConfigurationAsync();
-            var processingOptions = config.ProcessingOptions ?? new ProcessingOptions();
-            var analysisRules = config.AnalysisRules ?? new AnalysisRuleSet();
+            StoredConfiguration config = await _configurationRepository.GetActiveConfigurationAsync();
+            ProcessingOptions processingOptions = config.ProcessingOptions ?? new ProcessingOptions();
+            AnalysisRuleSet analysisRules = config.AnalysisRules ?? new AnalysisRuleSet();
 
             // Sobrescribir opciones con las de la request si vienen
             bool updateApi = request.UpdateApi ?? processingOptions.UpdateApi;
@@ -61,7 +64,7 @@ namespace ProDoctivityDS.Application.Services
             int processed = 0, updated = 0, pagesRemoved = 0, errors = 0, skipped = 0;
 
             // Inicializar progreso
-            var initialProgress = new ProcessProgressDto
+            ProcessProgressDto initialProgress = new ProcessProgressDto
             {
                 Total = total,
                 Processed = 0,
@@ -72,6 +75,7 @@ namespace ProDoctivityDS.Application.Services
                 CurrentDocumentName = "Iniciando...",
                 Status = "Iniciando"
             };
+            _logger.LogDebug("Actualizando progreso en servicio para sesión {SessionId}: {Processed}/{Total}", sessionId, processed, total);
             _progressStore.UpdateProgress(sessionId, initialProgress);
 
             await LogAsync("INFO", "Procesamiento",
@@ -93,7 +97,7 @@ namespace ProDoctivityDS.Application.Services
                 {
                     // 2.1 Obtener información del documento
                     _logger.LogDebug("Obteniendo información del documento {DocumentId}", documentId);
-                    var document = await _apiClient.GetDocumentAsync(
+                    ProductivityDocumentDto document = await _apiClient.GetDocumentAsync(
                         config.ApiBaseUrl,
                         config.BearerToken,
                         documentId,
@@ -102,7 +106,7 @@ namespace ProDoctivityDS.Application.Services
                     documentName = document.Name;
 
                     // Actualizar progreso
-                    var currentProgress = new ProcessProgressDto
+                    ProcessProgressDto currentProgress = new ProcessProgressDto
                     {
                         Total = total,
                         Processed = processed,
@@ -136,29 +140,37 @@ namespace ProDoctivityDS.Application.Services
                         }
                     }
 
-                    // 2.3 Descargar el PDF
-                    byte[] pdfBytes = await _apiClient.DownloadPdfAsync(
+                    // 2.3 Obtener detalle completo de la versión (incluye binarios y metadatos)
+                    var versionDetail = await _apiClient.GetDocumentVersionDetailAsync(
                         config.ApiBaseUrl,
                         config.BearerToken,
                         documentId,
                         versionId,
                         cancellationToken);
 
-                    if (pdfBytes == null || pdfBytes.Length == 0)
-                        throw new Exception("El PDF descargado está vacío");
+                    // Extraer el primer data URL que sea PDF
+                    var pdfDataUrl = versionDetail?.Document?.Binaries?
+                        .FirstOrDefault(b => b.Contains("application/pdf") || b.Contains("application/octet-stream"));
 
-                    // Guardar original (si está activado)
+                    if (string.IsNullOrEmpty(pdfDataUrl))
+                        throw new Exception("No se encontró PDF en los binarios de la versión");
+
+                    byte[] pdfBytes = DataUrlToBytes(pdfDataUrl); // Necesitas este método auxiliar
+
+                    // Guardar los metadatos originales para usarlos en la subida
+                    var originalData = versionDetail.Document.Data;
+                    var originalFilesName = versionDetail.Document.FilesName;
+
+                    // Guardar original (si está activado) - igual que antes
                     string originalPath = string.Empty;
                     if (saveOriginals)
                     {
                         originalPath = await _fileStorage.SaveFileAsync(
                             pdfBytes,
-                            $"{documentId}_original",  // Ej: "699f63cc..._original"
-                            "originals",                // subcarpeta fija
+                            $"{documentId}_original",
+                            "originals",
                             cancellationToken);
                     }
-
-                    
 
                     // 2.5 Determinar qué páginas eliminar
                     var pagesToRemove = new List<int>();
@@ -172,7 +184,7 @@ namespace ProDoctivityDS.Application.Services
                         int totalPages = await _pdfManipulator.GetPageCountAsync(pdfBytes, cancellationToken);
                         for (int pageIdx = 0; pageIdx < totalPages; pageIdx++)
                         {
-                            var pageResult = await _pdfAnalyzer.AnalyzePageAsync(pdfBytes, pageIdx, analysisRules, cancellationToken);
+                            PageAnalysisResult pageResult = await _pdfAnalyzer.AnalyzePageAsync(pdfBytes, pageIdx, analysisRules, cancellationToken);
                             if (pageResult.ShouldRemove)
                             {
                                 pagesToRemove.Add(pageIdx);
@@ -231,32 +243,28 @@ namespace ProDoctivityDS.Application.Services
                         }
                     }
 
-
                     // 2.7 Actualizar en API si corresponde
                     bool apiUpdated = false;
                     if (updateApi && anyPageRemoved)
                     {
                         _logger.LogDebug("Subiendo PDF procesado a la API para documento {DocumentId}", documentId);
                         apiUpdated = await _apiClient.UploadPdfAsync(
-                            config.ApiBaseUrl,
-                            config.BearerToken,
-                            documentName,
-                            processedPdf,
-                            document.DocumentTypeId,
-                            versionId,
-                            cancellationToken);
+                                                      config.ApiBaseUrl,
+                                                      config.BearerToken,
+                                                      documentName,
+                                                      processedPdf,
+                                                      document.DocumentTypeId,
+                                                      versionId,
+                                                      originalData,
+                                                      originalFilesName,
+                                                      cancellationToken);
 
                         if (apiUpdated)
-                        {
                             updated++;
-                        }
                         else
-                        {
                             _logger.LogWarning("Fallo al actualizar documento {DocumentId} en API", documentId);
-                        }
                     }
 
-                    
                     if (processingOptions.CreateBackup)
                     {
 
@@ -360,6 +368,11 @@ namespace ProDoctivityDS.Application.Services
             "SUCCESS" => LogLevel.Information,
             _ => LogLevel.Information
         };
+        private byte[] DataUrlToBytes(string dataUrl)
+        {
+            var base64Data = dataUrl.Substring(dataUrl.IndexOf(",") + 1);
+            return Convert.FromBase64String(base64Data);
+        }
 
         // Método para parsear la configuración de páginas
         private List<int> ParsePageRange(ProcessingOptions options, int totalPages)
@@ -398,5 +411,6 @@ namespace ProDoctivityDS.Application.Services
             }
             return pages.Distinct().OrderBy(x => x).ToList();
         }
+        
     }
 }
