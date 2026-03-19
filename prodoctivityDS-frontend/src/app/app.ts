@@ -19,7 +19,7 @@ import { map } from 'rxjs';
   ],
   template: `
     <mat-toolbar color="primary">
-      <span>ProDoctivity Processor</span>
+      <span>ProDoctivity Cleaner</span>
       <span class="spacer"></span>
       
       <button mat-icon-button routerLink="/logs" matTooltip="Ver Logs">
