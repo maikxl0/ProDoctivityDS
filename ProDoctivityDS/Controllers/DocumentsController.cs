@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using ProDoctivityDS.Application.Dtos.ProDoctivity;
 using ProDoctivityDS.Application.Dtos.Request;
 using ProDoctivityDS.Application.Dtos.Response;
 using ProDoctivityDS.Application.Interfaces;
@@ -186,6 +187,21 @@ namespace ProDoctivityDS.Controllers
             {
                 _logger.LogError(ex, "Error al obtener documento {DocumentId}", id);
                 return StatusCode(500, new { message = "Error interno al obtener documento" });
+            }
+        }
+
+        [HttpGet("{documentId}/identity-number")]
+        public async Task<ActionResult<DocumentIdentityNumberResponse>> GetIdentityNumber(string documentId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var number = await _searchService.GetDocumentIdentityNumberAsync(documentId, cancellationToken);
+                return Ok(new DocumentIdentityNumberResponse { DocumentId = documentId, IdentityNumber = number });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener identity number para documento {DocumentId}", documentId);
+                return StatusCode(500, new { message = "Error interno al obtener el número de identidad" });
             }
         }
     }

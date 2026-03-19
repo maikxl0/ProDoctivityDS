@@ -4,7 +4,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AuthService } from './data/services/auth.service'; 
+import { AuthService } from './data/service/auth.service'; 
 import { CommonModule } from '@angular/common';
 import { map } from 'rxjs';
 

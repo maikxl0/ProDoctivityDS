@@ -27,5 +27,7 @@ namespace ProDoctivityDS.Application.Interfaces
         /// <param name="cancellationToken">Token de cancelación.</param>
         /// <returns>DTO con la información del documento.</returns>
         Task<DocumentDto> GetDocumentAsync(string documentId, CancellationToken cancellationToken = default);
+
+        Task<string?> GetDocumentIdentityNumberAsync(string documentId, CancellationToken cancellationToken = default);
     }
 }

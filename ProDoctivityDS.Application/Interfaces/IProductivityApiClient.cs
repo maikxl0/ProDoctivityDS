@@ -5,6 +5,7 @@ namespace ProDoctivityDS.Application.Interfaces
 {
     public interface IProductivityApiClient
     {
+        Task EnsureValidTokenAsync(CancellationToken cancellationToken);
         Task<string> LoginAsync(
             string baseUrl,
             string username,

@@ -1,7 +1,16 @@
 import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Component, signal, computed, inject, OnInit, ChangeDetectorRef, NgZone } from '@angular/core';
+import {
+  Component,
+  signal,
+  computed,
+  inject,
+  OnInit,
+  ChangeDetectorRef,
+  NgZone,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 
 // Angular Material
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -16,11 +25,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 
 // Servicios y modelos
-import { DocumentService } from '../../data/services/document.service';
-import { DocumentTypeService } from '../../data/services/document-type.service';
+import { DocumentService } from '../../data/service/document.service';
+import { DocumentTypeService } from '../../data/service/document-type.service';
 import { Document } from '../../core/models/document.model';
 import { DocumentType } from '../../core/models/document-type.model';
-import { SelectionService } from '../../data/services/selection.service';
+import { SelectionService } from '../../data/service/selection.service';
 
 @Component({
   selector: 'app-document-search',
@@ -37,10 +46,9 @@ import { SelectionService } from '../../data/services/selection.service';
     MatPaginatorModule,
     MatProgressSpinnerModule,
     MatIconModule,
-    
   ],
   templateUrl: './document-search.html',
-  styleUrls: ['./document-search.css']
+  styleUrls: ['./document-search.css'],
 })
 export class DocumentSearchComponent implements OnInit {
   private fb = inject(FormBuilder);
@@ -64,7 +72,7 @@ export class DocumentSearchComponent implements OnInit {
   // Filtros
   filterForm: FormGroup = this.fb.group({
     name: [''],
-    selectedTypeIds: [[]]
+    selectedTypeIds: [[]],
   });
 
   // Paginación
@@ -80,14 +88,14 @@ export class DocumentSearchComponent implements OnInit {
     const docs = this.documents();
     if (docs.length === 0) return false;
     const selected = this.selectedDocuments();
-    return docs.every(d => selected.has(d.documentId));
+    return docs.every((d) => selected.has(d.documentId));
   });
 
   someSelected = computed(() => {
     const docs = this.documents();
     if (docs.length === 0) return false;
     const selected = this.selectedDocuments();
-    const count = docs.filter(d => selected.has(d.documentId)).length;
+    const count = docs.filter((d) => selected.has(d.documentId)).length;
     return count > 0 && count < docs.length;
   });
 
@@ -100,14 +108,14 @@ export class DocumentSearchComponent implements OnInit {
       next: (selectedIds) => {
         this.selectedDocuments.set(new Set(selectedIds));
       },
-      error: (err) => console.error('Error al cargar selección', err)
+      error: (err) => console.error('Error al cargar selección', err),
     });
   }
 
   loadDocumentTypes(): void {
     this.documentTypeService.getDocumentTypes().subscribe({
       next: (types) => this.documentTypes.set(types),
-      error: (err) => console.error('Error cargando tipos', err)
+      error: (err) => console.error('Error cargando tipos', err),
     });
   }
 
@@ -116,29 +124,26 @@ export class DocumentSearchComponent implements OnInit {
     this.loading.set(true);
     this.error.set(null);
 
-    this.documentService.searchDocuments(
-      this.pageIndex(),
-      this.pageSize(),
-      name,
-      selectedTypeIds
-    ).subscribe({
-      next: (result) => {
-  this.ngZone.run(() => {
-    this.documents.set(result.documents);
-    this.totalCount.set(result.totalCount);
-    this.loading.set(false);
-    this.cdr.detectChanges();
-    setTimeout(() => this.cdr.detectChanges(), 0); // Forzar otra detección
-  });
-},
-      error: (err) => {
-        this.ngZone.run(() => {
-          this.error.set('Error al cargar documentos: ' + err.message);
-          this.loading.set(false);
-          this.cdr.detectChanges();
-        });
-      }
-    });
+    this.documentService
+      .searchDocuments(this.pageIndex(), this.pageSize(), name, selectedTypeIds)
+      .subscribe({
+        next: (result) => {
+          this.ngZone.run(() => {
+            this.documents.set(result.documents);
+            this.totalCount.set(result.totalCount);
+            this.loading.set(false);
+            this.cdr.detectChanges();
+            setTimeout(() => this.cdr.detectChanges(), 0); // Forzar otra detección
+          });
+        },
+        error: (err) => {
+          this.ngZone.run(() => {
+            this.error.set('Error al cargar documentos: ' + err.message);
+            this.loading.set(false);
+            this.cdr.detectChanges();
+          });
+        },
+      });
   }
 
   onClear(): void {
@@ -157,7 +162,7 @@ export class DocumentSearchComponent implements OnInit {
 
   // Selección
   toggleSelection(docId: string): void {
-    this.selectedDocuments.update(set => {
+    this.selectedDocuments.update((set) => {
       const newSet = new Set(set);
       if (newSet.has(docId)) {
         newSet.delete(docId);
@@ -173,23 +178,23 @@ export class DocumentSearchComponent implements OnInit {
         error: (err) => {
           console.error('Error al seleccionar', err);
           // Revertir cambio local si falla
-          this.selectedDocuments.update(set => {
+          this.selectedDocuments.update((set) => {
             const revert = new Set(set);
             revert.delete(docId);
             return revert;
           });
-        }
+        },
       });
     } else {
       this.selectionService.clearAllSelection().subscribe({
         error: (err) => {
           console.error('Error al deseleccionar', err);
-          this.selectedDocuments.update(set => {
+          this.selectedDocuments.update((set) => {
             const revert = new Set(set);
             revert.add(docId);
             return revert;
           });
-        }
+        },
       });
     }
   }
@@ -199,17 +204,17 @@ export class DocumentSearchComponent implements OnInit {
   }
 
   selectAll(): void {
-    const allIds = this.documents().map(d => d.documentId);
-    this.selectedDocuments.update(set => new Set([...set, ...allIds]));
+    const allIds = this.documents().map((d) => d.documentId);
+    this.selectedDocuments.update((set) => new Set([...set, ...allIds]));
     this.selectionService.selectDocuments(allIds).subscribe({
       error: (err) => {
         console.error('Error al seleccionar todos', err);
-        this.selectedDocuments.update(set => {
+        this.selectedDocuments.update((set) => {
           const revert = new Set(set);
-          allIds.forEach(id => revert.delete(id));
+          allIds.forEach((id) => revert.delete(id));
           return revert;
         });
-      }
+      },
     });
   }
 
@@ -236,35 +241,57 @@ export class DocumentSearchComponent implements OnInit {
       error: (err) => {
         console.error('Error al limpiar selección', err);
         this.snackBar.open('Error al limpiar selección', 'Cerrar', { duration: 3000 });
-      }
+      },
     });
   }
   async copyIdentityNumbers(): Promise<void> {
-    // Evitar múltiples clics mientras se procesa
     if (this.copying()) return;
     this.copying.set(true);
 
     try {
-      const selectedDocs = this.documents().filter(doc => this.selectedDocuments().has(doc.documentId));
-      if (selectedDocs.length === 0) {
+      const selectedIds = Array.from(this.selectedDocuments());
+      if (selectedIds.length === 0) {
         this.snackBar.open('No hay documentos seleccionados', 'Cerrar', { duration: 2000 });
         return;
       }
 
-      // Extraer los números de documento de identidad
-      const numeros = selectedDocs
-        .map(doc => doc.data?.numeroDocumentoIdentidad)
-        .filter(num => num != null && num !== '')
-        .map(num => num.toString());
+      // Opcional: límite para evitar muchas llamadas
+      const MAX_DOCS = 20;
+      if (selectedIds.length > MAX_DOCS) {
+        const confirm = window.confirm(
+          `Has seleccionado ${selectedIds.length} documentos. Obtener los números de identidad de todos puede ser lento. ¿Continuar?`,
+        );
+        if (!confirm) {
+          this.copying.set(false);
+          return;
+        }
+      }
+
+      const numeros: string[] = [];
+
+      for (const id of selectedIds) {
+        try {
+          const result = await firstValueFrom(this.documentService.getDocumentIdentityNumber(id));
+          if (result.identityNumber) {
+            numeros.push(result.identityNumber);
+          }
+        } catch (err) {
+          console.warn(`Error al obtener identity number del documento ${id}`, err);
+        }
+      }
 
       if (numeros.length === 0) {
-        this.snackBar.open('Ningún documento seleccionado tiene número de identidad', 'Cerrar', { duration: 3000 });
+        this.snackBar.open('Ningún documento seleccionado tiene número de identidad', 'Cerrar', {
+          duration: 3000,
+        });
         return;
       }
 
       const text = numeros.join('\n');
       await navigator.clipboard.writeText(text);
-      this.snackBar.open(`${numeros.length} número(s) de identidad copiado(s)`, 'OK', { duration: 2000 });
+      this.snackBar.open(`${numeros.length} número(s) de identidad copiado(s)`, 'OK', {
+        duration: 2000,
+      });
     } catch (err) {
       console.error('Error al copiar', err);
       this.snackBar.open('Error al copiar al portapapeles', 'Cerrar', { duration: 3000 });

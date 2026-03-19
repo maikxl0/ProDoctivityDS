@@ -10,8 +10,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
-import { DuplicateService } from '../../data/services/duplicate.service';
-import { ProcessingService } from '../../data/services/processing.service';
+import { DuplicateService } from '../../data/service/duplicate.service';
+import { ProcessingService } from '../../data/service/processing.service';
 import { DuplicateCheckResponse, DuplicateGroup } from '../../core/models/duplicate.models';
 
 @Component({

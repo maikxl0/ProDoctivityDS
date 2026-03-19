@@ -6,6 +6,7 @@ using ProDoctivityDS.Application.Dtos.Response;
 using ProDoctivityDS.Application.Interfaces;
 using ProDoctivityDS.Domain.Entities;
 using ProDoctivityDS.Domain.Interfaces;
+using System.Text.Json;
 
 namespace ProDoctivityDS.Application.Services
 {
@@ -207,6 +208,42 @@ namespace ProDoctivityDS.Application.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener documento {DocumentId}", documentId);
+                throw;
+            }
+        }
+        public async Task<string?> GetDocumentIdentityNumberAsync(string documentId, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await _apiClient.EnsureValidTokenAsync(cancellationToken);
+                var config = await _configurationRepository.GetActiveConfigurationAsync();
+
+                // Obtener versiones del documento
+                var versions = await _apiClient.GetDocumentVersionsAsync(config.ApiBaseUrl, config.BearerToken, documentId, cancellationToken);
+                if (versions == null || !versions.Any())
+                    return null;
+
+                // Tomar la última versión (asumiendo que la más reciente es la que tiene los metadatos actualizados)
+                var latestVersion = versions.OrderByDescending(v => v.CreatedAt).FirstOrDefault();
+                if (latestVersion == null)
+                    return null;
+
+                // Obtener detalle de esa versión
+                var detail = await _apiClient.GetDocumentVersionDetailAsync(config.ApiBaseUrl, config.BearerToken, documentId, latestVersion.DocumentVersionId, cancellationToken);
+                if (detail?.Document?.Data == null)
+                    return null;
+
+                // Convertir Data a diccionario para acceder al campo
+                var data = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(detail.Document.Data));
+                if (data != null && data.TryGetValue("numeroDocumentoIdentidad", out var value))
+                {
+                    return value?.ToString();
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener número de identidad para documento {DocumentId}", documentId);
                 throw;
             }
         }

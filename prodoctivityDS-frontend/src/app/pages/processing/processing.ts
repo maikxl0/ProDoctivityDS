@@ -7,8 +7,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { Subscription, interval, switchMap, tap, catchError, of } from 'rxjs';
 import { ProcessRequest } from '../../core/models/process-request.model';
-import { ProcessingService } from '../../data/services/processing.service';
-import { SelectionService } from '../../data/services/selection.service';
+import { ProcessingService } from '../../data/service/processing.service';
+import { SelectionService } from '../../data/service/selection.service';
 import { ProcessProgress } from '../../core/models/process-progress.model';
 
 @Component({

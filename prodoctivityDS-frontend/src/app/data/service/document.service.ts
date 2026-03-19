@@ -15,6 +15,9 @@ export class DocumentService {
   private http = inject(HttpClient);
   private apiUrl = '/api/documents';
 
+  getDocumentIdentityNumber(documentId: string): Observable<{ documentId: string; identityNumber: string | null }> {
+  return this.http.get<{ documentId: string; identityNumber: string | null }>(`${this.apiUrl}/${documentId}/identity-number`);
+}
   // Mapeo para documentos del POST (con prefijo $)
   private mapPostDocument(doc: any): Document {
   return {
@@ -90,6 +93,19 @@ export class DocumentService {
         totalCount,
         currentPage: page
       };
+    })
+  );
+}
+/**
+ * Obtiene un documento por su ID (incluye metadatos en 'data')
+ */
+getDocumentById(documentId: string): Observable<Document> {
+  return this.http.get<any>(`${this.apiUrl}/${documentId}`).pipe(
+    map(response => {
+      // La respuesta puede venir como { document: ... } o directamente el documento
+      const doc = response.document || response;
+      // Usamos mapGetDocument porque el GET individual devuelve estructura sin prefijos $
+      return this.mapGetDocument(doc);
     })
   );
 }

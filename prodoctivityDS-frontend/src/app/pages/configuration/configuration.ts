@@ -12,7 +12,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatExpansionModule } from '@angular/material/expansion';
 
-import { ConfigurationService } from '../../data/services/configuration.service';
+import { ConfigurationService } from '../../data/service/configuration.service';
 import { SaveConfigurationRequest } from '../../core/models/configuration.model';
 
 @Component({

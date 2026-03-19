@@ -12,7 +12,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { Subscription, interval, startWith, switchMap } from 'rxjs';
-import { LogsService } from '../../data/services/logs.service';
+import { LogsService } from '../../data/service/logs.service';
 import { ActivityLogEntry } from '../../core/models/activity-log-entry.model';
 
 @Component({
