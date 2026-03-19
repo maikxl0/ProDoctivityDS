@@ -59,8 +59,6 @@ import { map } from 'rxjs';
 
 export class AppComponent { 
   private authService = inject(AuthService);
-
-  // Observable que emite true si el usuario está autenticado
   isAuthenticated$ = this.authService.checkAuthStatus().pipe(
     map(status => status.isAuthenticated)
   );
