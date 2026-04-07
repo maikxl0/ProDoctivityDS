@@ -107,6 +107,7 @@ namespace ProDoctivityDS.Shared.Services
 
                 diag.Append($"Página {result.PageNumber} será {(result.ShouldRemove ? "ELIMINADA" : "CONSERVADA")}.");
                 result.Diagnosis = diag.ToString();
+                _logger.LogInformation(result.Diagnosis);
             }
             catch (Exception ex)
             {

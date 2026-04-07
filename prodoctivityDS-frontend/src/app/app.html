@@ -2,10 +2,6 @@
   <span>ProDoctivity Cleaner</span>
   <span class="spacer"></span>
 
-  <button mat-icon-button routerLink="/logs" matTooltip="Ver Logs">
-    <mat-icon>list</mat-icon>
-  </button>
-
   <button mat-icon-button (click)="logout()" *ngIf="isAuthenticated$ | async" matTooltip="Cerrar sesion">
     <mat-icon>exit_to_app</mat-icon>
   </button>

@@ -39,7 +39,7 @@ namespace ProDoctivityDS.Persistence.Seeds
                     RemoveMode = "specific",
                     PageRangeStart = 0,
                     PageRangeEnd = 1,
-                    AnalyzeAllPages = false,
+                    AnalyzeAllPages = true,
                     ShowExtractedText = true
                     }, 
                     AnalysisRules = new AnalysisRuleSet()
