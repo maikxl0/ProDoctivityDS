@@ -54,16 +54,17 @@
   } @else if (error()) {
     <div class="error-message">{{ error() }}</div>
   } @else {
+    
     <!-- Paginador superior -->
-    <mat-paginator
-      [length]="totalCount()"
-      [pageSize]="pageSize()"
-      [pageIndex]="pageIndex()"
-      [pageSizeOptions]="pageSizeOptions"
-      (page)="onPageChange($event)"
-      class="top-paginator"
-    >
-    </mat-paginator>
+  <mat-paginator
+    [length]="customTotalCount()"
+    [pageSize]="pageSize()"
+    [pageIndex]="pageIndex()"
+    [pageSizeOptions]="pageSizeOptions"
+    (page)="onPageChange($event)"
+    class="top-paginator">
+  </mat-paginator>
+
 
     <div class="table-container">
       <table mat-table [dataSource]="documents()" class="mat-elevation-z8">
@@ -117,13 +118,12 @@
     </div>
 
     <!-- Paginador inferior -->
-    <mat-paginator
-      [length]="totalCount()"
-      [pageSize]="pageSize()"
-      [pageIndex]="pageIndex()"
-      [pageSizeOptions]="pageSizeOptions"
-      (page)="onPageChange($event)"
-    >
-    </mat-paginator>
+  <mat-paginator
+    [length]="customTotalCount()"
+    [pageSize]="pageSize()"
+    [pageIndex]="pageIndex()"
+    [pageSizeOptions]="pageSizeOptions"
+    (page)="onPageChange($event)">
+  </mat-paginator>
   }
 </div>

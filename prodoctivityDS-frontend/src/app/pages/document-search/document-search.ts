@@ -1,13 +1,5 @@
 import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import {
-  Component,
-  signal,
-  computed,
-  inject,
-  OnInit,
-  ChangeDetectorRef,
-  NgZone,
-} from '@angular/core';
+import { Component, signal, computed, inject, OnInit, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -63,7 +55,7 @@ export class DocumentSearchComponent implements OnInit {
   // Estado
   copying = signal(false);
   documents = signal<Document[]>([]);
-  totalCount = signal(0); // Ahora será un valor calculado
+  totalCount = signal(0); // Se mantiene por si se necesita, pero no se usa en el paginador
   loading = signal(false);
   error = signal<string | null>(null);
   selectedDocuments = signal<Set<string>>(new Set());
@@ -77,8 +69,8 @@ export class DocumentSearchComponent implements OnInit {
 
   // Paginación
   pageIndex = signal(0);
-  pageSize = signal(100); // Valor inicial 15 (uno de los permitidos)
-  pageSizeOptions = [15, 30, 100]; // Solo estos valores
+  pageSize = signal(100); // Valor inicial 100 (uno de los permitidos)
+  pageSizeOptions = [15, 30, 100];
 
   // Columnas de la tabla
   displayedColumns = ['select', 'documentId', 'name', 'documentTypeName', 'createdAt'];
@@ -97,6 +89,26 @@ export class DocumentSearchComponent implements OnInit {
     const selected = this.selectedDocuments();
     const count = docs.filter((d) => selected.has(d.documentId)).length;
     return count > 0 && count < docs.length;
+  });
+
+  /**
+   * Total personalizado para el paginador.
+   * Si la página actual está llena (documents.length === pageSize), asumimos que hay más elementos
+   * y forzamos la habilitación del botón "siguiente".
+   * En caso contrario (página incompleta), calculamos el total real.
+   */
+  customTotalCount = computed(() => {
+    const docs = this.documents();
+    const size = this.pageSize();
+    const currentPage = this.pageIndex();
+
+    if (docs.length === size) {
+      // Página llena → asumimos que hay al menos un elemento más
+      return (currentPage + 1) * size + 1;
+    } else {
+      // Última página: total real basado en los documentos actuales
+      return currentPage * size + docs.length;
+    }
   });
 
   ngOnInit(): void {
@@ -133,7 +145,7 @@ export class DocumentSearchComponent implements OnInit {
             this.totalCount.set(result.totalCount);
             this.loading.set(false);
             this.cdr.detectChanges();
-            setTimeout(() => this.cdr.detectChanges(), 0); // Forzar otra detección
+            setTimeout(() => this.cdr.detectChanges(), 0);
           });
         },
         error: (err) => {
@@ -244,6 +256,7 @@ export class DocumentSearchComponent implements OnInit {
       },
     });
   }
+
   async copyIdentityNumbers(): Promise<void> {
     if (this.copying()) return;
     this.copying.set(true);
