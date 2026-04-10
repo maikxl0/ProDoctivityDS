@@ -3,6 +3,7 @@ using ProDoctivityDS.Application.Dtos.ProDoctivity.Login;
 using ProDoctivityDS.Application.Interfaces;
 using ProDoctivityDS.Domain.Interfaces;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 
 namespace ProDoctivityDS.Application.Services
 {
@@ -49,6 +50,15 @@ namespace ProDoctivityDS.Application.Services
 
                 _logger.LogInformation("Login exitoso para usuario {Username}", username);
                 return new LoginResponse { Success = true, Message = "Login exitoso", Token = token };
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _logger.LogError(ex, "Productivity rechazó el login para usuario {Username}", username);
+                return new LoginResponse
+                {
+                    Success = false,
+                    Message = "Productivity rechazó el acceso (403). Verifica usuario, contraseña y permisos en la API configurada."
+                };
             }
             catch (Exception ex)
             {

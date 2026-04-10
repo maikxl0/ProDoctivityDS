@@ -37,10 +37,10 @@ namespace ProDoctivityDS.Application.Services
             var dto = _mapper.Map<ConfigurationDto>(config);
 
             // Ocultar credenciales sensibles
-            dto.ApiKey = config.ApiKey;
-            dto.ApiSecret = config.ApiSecret;
-            dto.BearerToken = config.BearerToken;
-            dto.CookieSessionId = config.CookieSessionId;
+            dto.ApiKey = string.IsNullOrEmpty(config.ApiKey) ? "" : "●●●●●●●●";
+            dto.ApiSecret = string.IsNullOrEmpty(config.ApiSecret) ? "" : "●●●●●●●●";
+            dto.BearerToken = string.IsNullOrEmpty(config.BearerToken) ? "" : "●●●●●●●●";
+            dto.CookieSessionId = string.IsNullOrEmpty(config.CookieSessionId) ? "" : "●●●●●●●●";
             dto.BaseUrl = config.ApiBaseUrl;
             return dto;
         }
@@ -80,6 +80,9 @@ namespace ProDoctivityDS.Application.Services
                     query: null,
                     page: 0,
                     pageSize: 15,
+                    apiKey: credentials.ApiKey,
+                    apiSecret: credentials.ApiSecret,
+                    cookie: credentials.CookieSessionId,
                     cancellationToken: cancellationToken
         );
 
@@ -108,6 +111,7 @@ namespace ProDoctivityDS.Application.Services
 
             // Mapear a DTO (incluye credenciales en texto plano porque el repositorio ya las descifró)
             var dto = _mapper.Map<ConfigurationDto>(config);
+            dto.BaseUrl = config.ApiBaseUrl;
 
             _logger.LogInformation("Configuración exportada");
 

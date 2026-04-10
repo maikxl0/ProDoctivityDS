@@ -19,7 +19,7 @@ namespace ProDoctivityDS.Controllers
         private readonly IDocumentDeletionService _deletionService;
 
         // Almacenamiento en memoria de los cancellation tokens por sesión
-        private static readonly Dictionary<string, CancellationTokenSource> _activeProcesses = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, CancellationTokenSource> _activeProcesses = new();
 
         public ProcessingController(
             IProcessingProgressStore progressStore,
@@ -44,7 +44,7 @@ namespace ProDoctivityDS.Controllers
             }
 
             var newSessionId = Guid.NewGuid().ToString();
-            Response.Headers.Add("X-Session-Id", newSessionId);
+            Response.Headers.Append("X-Session-Id", newSessionId);
             _logger.LogInformation("Nuevo X-Session-Id generado: {SessionId}", newSessionId);
             return newSessionId;
         }
@@ -151,7 +151,7 @@ namespace ProDoctivityDS.Controllers
                     }
                     finally
                     {
-                        _activeProcesses.Remove(sessionId);
+                        _activeProcesses.TryRemove(sessionId, out _);
                         _logger.LogInformation(">>> Procesamiento finalizado para sesión {SessionId}", sessionId);
                     }
                 }

@@ -26,7 +26,7 @@ namespace ProDoctivityDS.Controllers
                 return sessionId.ToString();
 
             var newSessionId = Guid.NewGuid().ToString();
-            Response.Headers.Add("X-Session-Id", newSessionId);
+            Response.Headers.Append("X-Session-Id", newSessionId);
             return newSessionId;
         }
 

@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# App runtime data (contains credentials at runtime)
+**/App_Data/stored-configuration.json
+**/App_Data/DataProtectionKeys/
+**/DataProtectionKeys/

@@ -453,7 +453,14 @@ namespace ProDoctivityDS.Application.Services
        
         private byte[] DataUrlToBytes(string dataUrl)
         {
-            var base64Data = dataUrl.Substring(dataUrl.IndexOf(",") + 1);
+            if (string.IsNullOrWhiteSpace(dataUrl))
+                throw new ArgumentException("DataUrl cannot be empty");
+
+            var commaIndex = dataUrl.IndexOf(",");
+            if (commaIndex < 0)
+                throw new ArgumentException("Invalid data URL format: missing comma separator");
+
+            var base64Data = dataUrl.Substring(commaIndex + 1);
             return Convert.FromBase64String(base64Data);
         }
         public async Task EnsureValidTokenAsync(CancellationToken cancellationToken)

@@ -198,7 +198,7 @@ export class DocumentSearchComponent implements OnInit {
         },
       });
     } else {
-      this.selectionService.clearAllSelection().subscribe({
+      this.selectionService.deselectDocuments([docId]).subscribe({
         error: (err) => {
           console.error('Error al deseleccionar', err);
           this.selectedDocuments.update((set) => {

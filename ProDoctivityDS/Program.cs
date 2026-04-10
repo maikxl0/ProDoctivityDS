@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.OpenApi;
 using ProDoctivityDS.Application;
 using ProDoctivityDS.Persistence;
@@ -10,11 +11,23 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 
 builder.Services.AddPersistenceDependencies(builder.Configuration);
-builder.Services.AddApplicationServices();
+builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddSharedServices();
 
 builder.Services.AddControllers();
 builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials()
+              .WithExposedHeaders("X-Session-Id");
+    });
+});
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 // Configurar Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -49,14 +62,47 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromMinutes(20);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
-    options.Cookie.SameSite = SameSiteMode.None;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.None;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 });
 
-var keyRingPath = Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys");
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+var appDataPath = builder.Configuration["AppData:BasePath"];
+if (string.IsNullOrWhiteSpace(appDataPath))
+{
+    appDataPath = Environment.GetEnvironmentVariable("APP_DATA_DIR");
+}
+
+if (string.IsNullOrWhiteSpace(appDataPath))
+{
+    appDataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+}
+else if (!Path.IsPathRooted(appDataPath))
+{
+    appDataPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, appDataPath));
+}
+
+Directory.CreateDirectory(appDataPath);
+
+var keyRingPath = builder.Configuration["Persistence:DataProtectionKeysPath"];
+if (string.IsNullOrWhiteSpace(keyRingPath))
+{
+    keyRingPath = Path.Combine(appDataPath, "DataProtectionKeys");
+}
+else if (!Path.IsPathRooted(keyRingPath))
+{
+    keyRingPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, keyRingPath));
+}
+
 Directory.CreateDirectory(keyRingPath);
 builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys")))
+    .PersistKeysToFileSystem(new DirectoryInfo(keyRingPath))
     .SetApplicationName("ProDoctivityDS");
 
 var app = builder.Build();
@@ -77,11 +123,14 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseCors("AllowFrontend");
 app.UseSession();
 
 app.UseAuthorization();
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).ExcludeFromDescription();
 app.MapControllers();
 
 app.Run();

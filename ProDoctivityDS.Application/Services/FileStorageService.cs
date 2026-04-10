@@ -13,7 +13,22 @@ namespace ProDoctivityDS.Application.Services
         public FileStorageService(ILogger<FileStorageService> logger, IOptions<FileStorageSettingsDto> settings)
         {
             _logger = logger;
-            _basePath = Path.GetFullPath(settings.Value.BasePath);
+            var configuredBasePath = settings.Value.BasePath;
+            var appDataPath = Environment.GetEnvironmentVariable("APP_DATA_DIR");
+
+            if (Path.IsPathRooted(configuredBasePath))
+            {
+                _basePath = Path.GetFullPath(configuredBasePath);
+            }
+            else if (!string.IsNullOrWhiteSpace(appDataPath))
+            {
+                _basePath = Path.GetFullPath(Path.Combine(appDataPath, configuredBasePath));
+            }
+            else
+            {
+                _basePath = Path.GetFullPath(configuredBasePath);
+            }
+
             EnsureDirectoryExists(_basePath);
         }
 

@@ -1,0 +1,8 @@
+.git
+.gitignore
+.runlogs
+**/bin
+**/obj
+prodoctivityDS-frontend/node_modules
+prodoctivityDS-frontend/dist
+prodoctivityDS-frontend/.angular

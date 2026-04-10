@@ -2,8 +2,6 @@
 using ProDoctivityDS.Application.Interfaces;
 using ProDoctivityDS.Domain.Interfaces;
 using ProDoctivityDS.Shared.Services;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
-
 namespace ProDoctivityDS.Shared
 {
     public static class SharedDependency

@@ -9,7 +9,7 @@ import { ProcessRequest } from '../../core/models/process-request.model';
 export class ProcessingService {
   private http = inject(HttpClient);
   private apiUrl = '/api/processing';
-  private sessionIdKey = 'x-session-id';
+  private sessionIdKey = 'sessionId';
 
   private getSessionId(): string | null {
     return localStorage.getItem(this.sessionIdKey);

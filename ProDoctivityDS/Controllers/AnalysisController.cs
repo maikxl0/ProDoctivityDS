@@ -100,6 +100,11 @@ namespace ProDoctivityDS.Controllers
             if (file == null || file.Length == 0)
                 return BadRequest(new { message = "Debe proporcionar un archivo PDF" });
 
+            // Validar tamaño máximo (50 MB)
+            const long maxFileSize = 50 * 1024 * 1024;
+            if (file.Length > maxFileSize)
+                return BadRequest(new { message = $"El archivo no puede exceder {maxFileSize / 1024 / 1024} MB" });
+
             // Validar extensión
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (extension != ".pdf")

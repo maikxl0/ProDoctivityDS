@@ -11,13 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [
-    FormsModule,
-    MatCardModule,
-    MatInputModule,
-    MatButtonModule,
-    MatIconModule
-  ],
+  imports: [FormsModule, MatCardModule, MatInputModule, MatButtonModule, MatIconModule],
   templateUrl: './login.html',
   styleUrls: ['./login.css']
 })
@@ -35,7 +29,8 @@ export class LoginComponent {
         this.router.navigate(['/documents']);
       },
       error: (err) => {
-        this.snackBar.open('Error de autenticación: ' + err.error?.message, 'Cerrar', { duration: 3000 });
+        const message = err.error?.message || 'No fue posible iniciar sesion';
+        this.snackBar.open(message, 'Cerrar', { duration: 4000 });
       }
     });
   }

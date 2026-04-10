@@ -15,7 +15,8 @@ namespace ProDoctivityDS.Application.Mappings
 
             // Configuración
             CreateMap<StoredConfiguration, ConfigurationDto>()
-    .ForMember(dest => dest.BearerToken, opt => opt.MapFrom(src => src.BearerToken));
+                .ForMember(dest => dest.BaseUrl, opt => opt.MapFrom(src => src.ApiBaseUrl))
+                .ForMember(dest => dest.BearerToken, opt => opt.MapFrom(src => src.BearerToken));
 
             // Documentos
             //CreateMap<ProductivityDocument, DocumentDto>()

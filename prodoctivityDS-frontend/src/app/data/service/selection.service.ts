@@ -6,7 +6,7 @@ import { Observable } from 'rxjs';
 export class SelectionService {
   private http = inject(HttpClient);
   private baseUrl = '/api/selection';
-  private sessionIdKey = 'app-session-id';
+  private sessionIdKey = 'sessionId';
 
   private getSessionId(): string {
     let sessionId = localStorage.getItem(this.sessionIdKey);
@@ -33,6 +33,10 @@ export class SelectionService {
 
   selectDocuments(documentIds: string[]): Observable<any> {
     return this.http.post(`${this.baseUrl}/select`, documentIds, { headers: this.createHeaders() });
+  }
+
+  deselectDocuments(documentIds: string[]): Observable<any> {
+    return this.http.post(`${this.baseUrl}/deselect`, documentIds, { headers: this.createHeaders() });
   }
 
   clearAllSelection(): Observable<any> {
