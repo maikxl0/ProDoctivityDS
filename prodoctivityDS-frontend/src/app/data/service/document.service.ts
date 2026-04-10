@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Document } from '../../core/models/document.model';
+import { environment } from '../../../environments/environment';
 
 export interface SearchResponse {
   documents: Document[];
@@ -13,7 +14,7 @@ export interface SearchResponse {
 @Injectable({ providedIn: 'root' })
 export class DocumentService {
   private http = inject(HttpClient);
-  private apiUrl = '/api/documents';
+  private apiUrl = `${environment.apiUrl}/documents`;
 
   getDocumentIdentityNumber(documentId: string): Observable<{ documentId: string; identityNumber: string | null }> {
   return this.http.get<{ documentId: string; identityNumber: string | null }>(`${this.apiUrl}/${documentId}/matricula`);

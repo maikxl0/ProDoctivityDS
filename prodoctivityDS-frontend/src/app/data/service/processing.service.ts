@@ -4,11 +4,12 @@ import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { ProcessProgress } from '../../core/models/process-progress.model';
 import { ProcessRequest } from '../../core/models/process-request.model';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class ProcessingService {
   private http = inject(HttpClient);
-  private apiUrl = '/api/processing';
+  private apiUrl = `${environment.apiUrl}/processing`;
   private sessionIdKey = 'sessionId';
 
   private getSessionId(): string | null {

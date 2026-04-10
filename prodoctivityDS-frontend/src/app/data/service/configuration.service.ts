@@ -3,11 +3,12 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Configuration, SaveConfigurationRequest } from '../../core/models/configuration.model';
 import { ApiCredentials } from '../../core/models/api-credentials.model';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class ConfigurationService {
   private http = inject(HttpClient);
-  private apiUrl = '/api/configuration';
+  private apiUrl = `${environment.apiUrl}/configuration`;
 
   /** Obtiene la configuración activa (campos sensibles ocultos) */
   getConfiguration(): Observable<Configuration> {
