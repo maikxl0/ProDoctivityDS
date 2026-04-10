@@ -2,6 +2,7 @@
 using ProDoctivityDS.Application.Dtos.Request;
 using ProDoctivityDS.Application.Dtos.Response;
 using ProDoctivityDS.Application.Interfaces;
+using ProDoctivityDS.Domain.Interfaces;
 
 namespace ProDoctivityDS.Controllers
 {
@@ -17,6 +18,7 @@ namespace ProDoctivityDS.Controllers
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ISelectionService _selectionService;
         private readonly IDocumentDeletionService _deletionService;
+        private readonly ICurrentUserService _currentUserService;
 
         // Almacenamiento en memoria de los cancellation tokens por sesión
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, CancellationTokenSource> _activeProcesses = new();
@@ -26,13 +28,15 @@ namespace ProDoctivityDS.Controllers
             ILogger<ProcessingController> logger,
             IServiceScopeFactory scopeFactory,
             ISelectionService selectionService,
-            IDocumentDeletionService deletionService)
+            IDocumentDeletionService deletionService,
+            ICurrentUserService currentUserService)
         {
             _progressStore = progressStore;
             _logger = logger;
             _scopeFactory = scopeFactory;
             _selectionService = selectionService;
             _deletionService = deletionService;
+            _currentUserService = currentUserService;
         }
 
         private string GetOrCreateSessionId()
@@ -125,8 +129,10 @@ namespace ProDoctivityDS.Controllers
             _logger.LogInformation(">>> DESPUÉS de UpdateProgress para sesión {SessionId}", sessionId);
 
             // Lanzar tarea en segundo plano
+            var currentUsername = _currentUserService.GetCurrentUsername();
             _ = Task.Run(async () =>
             {
+                using var userOverride = _currentUserService.OverrideUsername(currentUsername);
                 using (var scope = _scopeFactory.CreateScope())
                 {
                     var processingService = scope.ServiceProvider.GetRequiredService<IProcessingService>();

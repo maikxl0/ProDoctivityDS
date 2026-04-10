@@ -50,12 +50,19 @@ namespace ProDoctivityDS.Application.Services
         {
             try
             {
+                // Cargar configuración existente para preservar campos de usuario
+                var existing = await _configurationRepository.GetActiveConfigurationAsync();
+
                 // Mapear DTO a entidad de dominio
                 var config = _mapper.Map<StoredConfiguration>(request);
 
-                // Actualizar en repositorio (el repositorio se encarga del cifrado)
+                // Preservar campos per-user que no vienen en el DTO de configuración
+                config.Username = existing.Username;
+                config.Password = existing.Password;
+                config.BearerToken = existing.BearerToken;
+
+                // Actualizar en repositorio
                 await _configurationRepository.UpdateConfigurationAsync(config);
-                
 
                 _logger.LogInformation("Configuración guardada correctamente");
             }

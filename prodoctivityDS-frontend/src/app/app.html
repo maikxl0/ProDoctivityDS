@@ -1,26 +1,34 @@
-<mat-toolbar color="primary">
-  <span>ProDoctivity Cleaner</span>
-  <span class="spacer"></span>
+<div class="app-header" *ngIf="isAuthenticated$ | async">
+  <mat-toolbar>
+    <div class="toolbar-brand">
+      <mat-icon class="brand-icon">description</mat-icon>
+      <span class="brand-name">ProDoctivity</span>
+    </div>
+    <span class="spacer"></span>
+    <button mat-icon-button (click)="logout()" matTooltip="Cerrar sesión">
+      <mat-icon>logout</mat-icon>
+    </button>
+  </mat-toolbar>
 
-  <button mat-icon-button (click)="logout()" *ngIf="isAuthenticated$ | async" matTooltip="Cerrar sesion">
-    <mat-icon>exit_to_app</mat-icon>
-  </button>
-</mat-toolbar>
-
-<nav mat-tab-nav-bar [tabPanel]="tabPanel">
-  <a mat-tab-link routerLink="/documents" routerLinkActive #rla1="routerLinkActive" [active]="rla1.isActive">
-    Buscar Documentos
-  </a>
-  <a mat-tab-link routerLink="/processing" routerLinkActive #rla2="routerLinkActive" [active]="rla2.isActive">
-    Procesar
-  </a>
-  <a mat-tab-link routerLink="/duplicates" routerLinkActive #rla4="routerLinkActive" [active]="rla4.isActive">
-    Duplicados
-  </a>
-  <a mat-tab-link routerLink="/configuration" routerLinkActive #rla3="routerLinkActive" [active]="rla3.isActive">
-    Configuración
-  </a>
-</nav>
+  <nav mat-tab-nav-bar [tabPanel]="tabPanel">
+    <a mat-tab-link routerLink="/documents" routerLinkActive #rla1="routerLinkActive" [active]="rla1.isActive">
+      <mat-icon class="tab-icon">search</mat-icon>
+      Buscar Documentos
+    </a>
+    <a mat-tab-link routerLink="/processing" routerLinkActive #rla2="routerLinkActive" [active]="rla2.isActive">
+      <mat-icon class="tab-icon">play_circle</mat-icon>
+      Procesar
+    </a>
+    <a mat-tab-link routerLink="/duplicates" routerLinkActive #rla4="routerLinkActive" [active]="rla4.isActive">
+      <mat-icon class="tab-icon">content_copy</mat-icon>
+      Duplicados
+    </a>
+    <a mat-tab-link routerLink="/configuration" routerLinkActive #rla3="routerLinkActive" [active]="rla3.isActive">
+      <mat-icon class="tab-icon">settings</mat-icon>
+      Configuración
+    </a>
+  </nav>
+</div>
 
 <mat-tab-nav-panel #tabPanel></mat-tab-nav-panel>
 

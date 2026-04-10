@@ -11,44 +11,58 @@ namespace ProDoctivityDS.Application.Services
     {
         private readonly IStoredConfigurationRepository _configRepository;
         private readonly IProductivityApiClient _apiClient;
+        private readonly ICurrentUserService _currentUserService;
         private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             IStoredConfigurationRepository configRepository,
             IProductivityApiClient apiClient,
+            ICurrentUserService currentUserService,
             ILogger<AuthService> logger)
         {
             _configRepository = configRepository;
             _apiClient = apiClient;
+            _currentUserService = currentUserService;
             _logger = logger;
         }
 
-        public async Task<LoginResponse> LoginAsync(string username, string password, CancellationToken cancellationToken = default)
+        public async Task<LoginResponse> LoginAsync(string username, string password, string sessionId, CancellationToken cancellationToken = default)
         {
             try
             {
-                var config = await _configRepository.GetActiveConfigurationAsync();
-                if (config == null)
+                // Usar configuración por defecto para credenciales de API
+                var defaultConfig = await _configRepository.GetDefaultConfigurationAsync();
+                if (defaultConfig == null || string.IsNullOrEmpty(defaultConfig.ApiBaseUrl))
                 {
-                    return new LoginResponse { Success = false, Message = "No hay configuración activa en la base de datos." };
+                    return new LoginResponse { Success = false, Message = "No hay configuración de API activa. Configure la API primero." };
                 }
 
                 var token = await _apiClient.LoginAsync(
-                    config.ApiBaseUrl,
+                    defaultConfig.ApiBaseUrl,
                     username,
                     password,
-                    config.ApiKey,
-                    config.ApiSecret,
-                    config.CookieSessionId,
+                    defaultConfig.ApiKey,
+                    defaultConfig.ApiSecret,
+                    defaultConfig.CookieSessionId,
                     cancellationToken);
 
-                config.BearerToken = token;
-                config.Username = username;
-                config.Password = password; 
+                // Cargar o crear configuración per-user
+                var userConfig = await _configRepository.GetConfigurationForUserAsync(username);
+                userConfig.BearerToken = token;
+                userConfig.Username = username;
+                userConfig.Password = password;
+                // Asegurar que las credenciales de API estén actualizadas
+                userConfig.ApiBaseUrl = defaultConfig.ApiBaseUrl;
+                userConfig.ApiKey = defaultConfig.ApiKey;
+                userConfig.ApiSecret = defaultConfig.ApiSecret;
+                userConfig.CookieSessionId = defaultConfig.CookieSessionId;
 
-                await _configRepository.UpdateConfigurationAsync(config);
+                await _configRepository.UpdateConfigurationForUserAsync(username, userConfig);
 
-                _logger.LogInformation("Login exitoso para usuario {Username}", username);
+                // Registrar mapeo sesión → usuario
+                _currentUserService.SetUsername(sessionId, username);
+
+                _logger.LogInformation("Login exitoso para usuario {Username}, sesión {SessionId}", username, sessionId);
                 return new LoginResponse { Success = true, Message = "Login exitoso", Token = token };
             }
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)

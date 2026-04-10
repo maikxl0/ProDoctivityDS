@@ -2,6 +2,47 @@
   flex: 1 1 auto;
 }
 
+mat-toolbar {
+  background: linear-gradient(135deg, #0d2137, #1a3a5c) !important;
+  color: #fff !important;
+  height: 56px;
+}
+
+.toolbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  color: #64b5f6;
+}
+
+.brand-name {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.tab-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+}
+
+nav[mat-tab-nav-bar] {
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+}
+
 main {
-  padding: 20px;
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: #f8f9fb;
+  min-height: calc(100vh - 105px);
 }

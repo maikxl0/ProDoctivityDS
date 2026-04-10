@@ -2,13 +2,18 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.OpenApi;
 using ProDoctivityDS.Application;
+using ProDoctivityDS.Domain.Interfaces;
 using ProDoctivityDS.Persistence;
 using ProDoctivityDS.Shared;
 using ProDoctivityDS.Persistence.Seeds;
+using ProDoctivityDS.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+
+// Registrar CurrentUserService antes de Persistence (repo depende de ICurrentUserService)
+builder.Services.AddSingleton<ICurrentUserService, CurrentUserService>();
 
 builder.Services.AddPersistenceDependencies(builder.Configuration);
 builder.Services.AddApplicationServices(builder.Configuration);

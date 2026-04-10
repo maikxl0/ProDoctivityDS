@@ -1,142 +1,204 @@
-using AutoMapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using ProDoctivityDS.Domain.Entities;
 using ProDoctivityDS.Domain.Interfaces;
+using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace ProDoctivityDS.Persistence.Repositories
 {
     public class StoredConfigurationRepository : IStoredConfigurationRepository
     {
-        private readonly IMapper _mapper;
         private readonly ILogger<StoredConfigurationRepository> _logger;
-        private readonly string _filePath;
-        private readonly object _lock = new object();
-        private StoredConfiguration? _configuration;
+        private readonly ICurrentUserService _currentUserService;
+        private readonly string _basePath;
+        private readonly string _defaultFilePath;
+        private readonly object _defaultLock = new();
+        private readonly ConcurrentDictionary<string, (StoredConfiguration Config, object Lock)> _userConfigs = new();
+        private StoredConfiguration? _defaultConfiguration;
 
-        private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+        private static readonly JsonSerializerOptions JsonOptions = new()
         {
             WriteIndented = true
         };
 
         public StoredConfigurationRepository(
-            IMapper mapper,
             IConfiguration configuration,
-            ILogger<StoredConfigurationRepository> logger)
+            ILogger<StoredConfigurationRepository> logger,
+            ICurrentUserService currentUserService)
         {
-            _mapper = mapper;
             _logger = logger;
+            _currentUserService = currentUserService;
+
             var contentRootPath = Directory.GetCurrentDirectory();
-
-            var appDataPath = configuration["AppData:BasePath"];
-            if (string.IsNullOrWhiteSpace(appDataPath))
-            {
-                appDataPath = Environment.GetEnvironmentVariable("APP_DATA_DIR");
-            }
+            var appDataPath = configuration["AppData:BasePath"]
+                ?? Environment.GetEnvironmentVariable("APP_DATA_DIR");
 
             if (string.IsNullOrWhiteSpace(appDataPath))
-            {
                 appDataPath = Path.Combine(contentRootPath, "App_Data");
-            }
             else if (!Path.IsPathRooted(appDataPath))
-            {
                 appDataPath = Path.GetFullPath(Path.Combine(contentRootPath, appDataPath));
-            }
+
+            _basePath = appDataPath;
 
             var configuredFilePath = configuration["Persistence:ConfigurationFilePath"];
             if (string.IsNullOrWhiteSpace(configuredFilePath))
-            {
-                _filePath = Path.Combine(appDataPath, "stored-configuration.json");
-            }
+                _defaultFilePath = Path.Combine(appDataPath, "stored-configuration.json");
             else if (Path.IsPathRooted(configuredFilePath))
-            {
-                _filePath = configuredFilePath;
-            }
+                _defaultFilePath = configuredFilePath;
             else
-            {
-                _filePath = Path.GetFullPath(Path.Combine(contentRootPath, configuredFilePath));
-            }
+                _defaultFilePath = Path.GetFullPath(Path.Combine(contentRootPath, configuredFilePath));
 
-            var directory = Path.GetDirectoryName(_filePath);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
+            Directory.CreateDirectory(_basePath);
         }
 
         public Task<StoredConfiguration> GetActiveConfigurationAsync()
         {
-            lock (_lock)
-            {
-                EnsureLoaded();
+            var username = _currentUserService.GetCurrentUsername();
+            if (string.IsNullOrEmpty(username))
+                return GetDefaultConfigurationAsync();
 
-                if (_configuration == null)
+            return GetConfigurationForUserAsync(username);
+        }
+
+        public Task<StoredConfiguration> GetDefaultConfigurationAsync()
+        {
+            lock (_defaultLock)
+            {
+                if (_defaultConfiguration == null)
+                    _defaultConfiguration = LoadFromFile(_defaultFilePath);
+
+                return Task.FromResult(Clone(_defaultConfiguration));
+            }
+        }
+
+        public Task<StoredConfiguration> GetConfigurationForUserAsync(string username)
+        {
+            var safeUsername = SanitizeUsername(username);
+            var entry = _userConfigs.GetOrAdd(safeUsername, _ => (null!, new object()));
+
+            lock (entry.Lock)
+            {
+                if (entry.Config != null)
+                    return Task.FromResult(Clone(entry.Config));
+
+                var userPath = GetUserConfigPath(safeUsername);
+                StoredConfiguration config;
+
+                if (File.Exists(userPath))
                 {
-                    return Task.FromResult(new StoredConfiguration());
+                    config = LoadFromFile(userPath);
+                    _logger.LogInformation("Configuración cargada para usuario {Username}", username);
+                }
+                else
+                {
+                    // Nuevo usuario: heredar de la plantilla por defecto
+                    lock (_defaultLock)
+                    {
+                        if (_defaultConfiguration == null)
+                            _defaultConfiguration = LoadFromFile(_defaultFilePath);
+                    }
+                    config = Clone(_defaultConfiguration!);
+                    config.Username = username;
+                    config.Password = null;
+                    config.BearerToken = string.Empty;
+                    SaveToFile(userPath, config);
+                    _logger.LogInformation("Configuración creada para nuevo usuario {Username}", username);
                 }
 
-                var copy = _mapper.Map<StoredConfiguration>(_configuration);
-                return Task.FromResult(copy);
+                _userConfigs[safeUsername] = (config, entry.Lock);
+                return Task.FromResult(Clone(config));
             }
         }
 
         public Task UpdateConfigurationAsync(StoredConfiguration configuration)
         {
-            lock (_lock)
+            var username = _currentUserService.GetCurrentUsername();
+            if (string.IsNullOrEmpty(username))
             {
-                EnsureLoaded();
+                // Actualizar plantilla por defecto
+                lock (_defaultLock)
+                {
+                    configuration.LastModified = DateTime.UtcNow;
+                    _defaultConfiguration = Clone(configuration);
+                    SaveToFile(_defaultFilePath, configuration);
+                }
+                return Task.CompletedTask;
+            }
 
-                var entityToStore = _mapper.Map<StoredConfiguration>(configuration);
-                entityToStore.ProcessingOptionsJson = configuration.ProcessingOptionsJson;
-                entityToStore.AnalysisRulesJson = configuration.AnalysisRulesJson;
-                entityToStore.LastModified = DateTime.UtcNow;
+            return UpdateConfigurationForUserAsync(username, configuration);
+        }
 
-                _configuration = entityToStore;
-                PersistConfiguration();
+        public Task UpdateConfigurationForUserAsync(string username, StoredConfiguration configuration)
+        {
+            var safeUsername = SanitizeUsername(username);
+            var entry = _userConfigs.GetOrAdd(safeUsername, _ => (null!, new object()));
+
+            lock (entry.Lock)
+            {
+                configuration.LastModified = DateTime.UtcNow;
+                var cloned = Clone(configuration);
+                _userConfigs[safeUsername] = (cloned, entry.Lock);
+
+                var userPath = GetUserConfigPath(safeUsername);
+                SaveToFile(userPath, configuration);
+                _logger.LogInformation("Configuración actualizada para usuario {Username}", username);
             }
 
             return Task.CompletedTask;
         }
 
-        private void EnsureLoaded()
+        private string GetUserConfigPath(string safeUsername)
         {
-            if (_configuration != null)
-            {
-                return;
-            }
+            var userDir = Path.Combine(_basePath, "users", safeUsername);
+            Directory.CreateDirectory(userDir);
+            return Path.Combine(userDir, "config.json");
+        }
 
-            if (!File.Exists(_filePath))
-            {
-                _configuration = new StoredConfiguration();
-                return;
-            }
+        private static string SanitizeUsername(string username)
+        {
+            // Reemplazar caracteres no válidos para nombres de directorio
+            return Regex.Replace(username.ToLowerInvariant().Trim(), @"[^a-z0-9._@-]", "_");
+        }
+
+        private StoredConfiguration Clone(StoredConfiguration source)
+        {
+            var json = JsonSerializer.Serialize(source, JsonOptions);
+            return JsonSerializer.Deserialize<StoredConfiguration>(json, JsonOptions) ?? new StoredConfiguration();
+        }
+
+        private StoredConfiguration LoadFromFile(string filePath)
+        {
+            if (!File.Exists(filePath))
+                return new StoredConfiguration();
 
             try
             {
-                var json = File.ReadAllText(_filePath);
-                _configuration = JsonSerializer.Deserialize<StoredConfiguration>(json, JsonOptions) ?? new StoredConfiguration();
+                var json = File.ReadAllText(filePath);
+                return JsonSerializer.Deserialize<StoredConfiguration>(json, JsonOptions) ?? new StoredConfiguration();
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(
-                    ex,
-                    "No se pudo cargar la configuracion persistida desde {FilePath}. Se usara configuracion vacia.",
-                    _filePath);
-                _configuration = new StoredConfiguration();
+                _logger.LogWarning(ex, "No se pudo cargar configuración desde {FilePath}", filePath);
+                return new StoredConfiguration();
             }
         }
 
-        private void PersistConfiguration()
+        private void SaveToFile(string filePath, StoredConfiguration config)
         {
             try
             {
-                var json = JsonSerializer.Serialize(_configuration, JsonOptions);
-                File.WriteAllText(_filePath, json);
+                var dir = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+
+                var json = JsonSerializer.Serialize(config, JsonOptions);
+                File.WriteAllText(filePath, json);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "No se pudo guardar la configuracion persistida en {FilePath}", _filePath);
+                _logger.LogError(ex, "No se pudo guardar configuración en {FilePath}", filePath);
                 throw;
             }
         }
